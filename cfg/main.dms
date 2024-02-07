@@ -1,0 +1,20 @@
+container BegrenzingBebouwdGebied
+{
+	#include <Units.dms>
+	#include <Geography.dms>
+	
+	#include <ModelParameters.dms>
+	#include <Classifications.dms>	
+	#include <SourceData.dms>
+	#include <Analysis.dms>
+	
+	// Settings
+	#include <ConfigSettings.dms>
+	#include <ExportSettings.dms>
+	
+	// For debug purposes
+	container Desktops 
+	{
+		container x;
+	}
+}

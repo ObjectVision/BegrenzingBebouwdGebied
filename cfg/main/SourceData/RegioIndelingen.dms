@@ -1,0 +1,120 @@
+container RegioIndelingen
+{ 
+	#include<Impl.dms>
+	
+	unit<uint32> CBS_Gebiedsindelingen_jaren := range(uint32, 2015, 2023)
+	{
+		attribute<uint32> jaar            := id(.);
+		attribute<string> name            := 'Y'+string(jaar);
+		attribute<bool>   IsGeneraliseerd := jaar < 2019;
+	}
+	container CBS :=
+		for_each_ne(
+			CBS_Gebiedsindelingen_jaren/name
+			, 'Read_Gebiedsindelingen_gpkg_T('+quote(string(CBS_Gebiedsindelingen_jaren/jaar))+')'
+		)
+	{
+		container Last := =last(CBS_Gebiedsindelingen_jaren/name);
+	}
+
+	Template Read_Gebiedsindelingen_gpkg_T
+	{
+		parameter<string> jaar;
+		//
+		parameter<bool>   IsGeneraliseerd     := rjoin('Y'+jaar, CBS_Gebiedsindelingen_jaren/name, CBS_Gebiedsindelingen_jaren/IsGeneraliseerd);
+		parameter<string> gegeneraliseerd_str := IsGeneraliseerd ? '_gegeneraliseerd' : '_niet_gegeneraliseerd';
+		
+		container gpkg
+		:	StorageName     = "='%SourceDataDir%/CBS/cbsgebiedsindelingen'+jaar+'.gpkg'"
+		, 	StorageType     = "gdal.vect"
+		,	StorageReadOnly = "True"
+		,	SyncMode        = "alltables"
+		,	DialogData      = "rdc"
+		,	URL             = "https://www.cbs.nl/nl-nl/dossier/nederland-regionaal/geografische-data/cbs-gebiedsindelingen"
+		{
+		}
+		
+		unit<uint32> Buurt     := ='gpkg/cbs_buurt_'+jaar+gegeneraliseerd_str
+		{
+			attribute<string>    label                                           := statnaam;
+			attribute<string>    name                                            := AsItemName(statnaam);
+			container V := for_each_nedv(name, string(id(.))+'[..]', void, .);
+		}
+		unit<uint32> Wijk      := ='gpkg/cbs_wijk_'+jaar+gegeneraliseerd_str
+		{
+			attribute<string>    label                                           := statnaam;
+			attribute<string>    name                                            := AsItemName(statnaam);
+			container V := for_each_nedv(name, string(id(.))+'[..]', void, .);
+		}
+		unit<uint32> Gemeente  := ='gpkg/cbs_gemeente_'+jaar+gegeneraliseerd_str
+		{
+			attribute<string>    label                                           := statnaam;
+			attribute<string>    name                                            := AsItemName(statnaam);
+			attribute<uint32>    gem_nr                                          := uint32(right(statcode, 4));
+			
+			container V := for_each_nedv(name, string(id(.))+'[..]', void, .);
+		}
+		unit<uint32> COROP     := ='gpkg/cbs_coropgebied_'+jaar+'_gegeneraliseerd'
+		{
+			attribute<string>    label                                           := statnaam;
+			attribute<string>    name                                            := AsItemName(statnaam);
+			container V := for_each_nedv(name, string(id(.))+'[..]', void, .);
+		}
+		unit<uint32> Provincie := ='gpkg/cbs_provincie_'+jaar+'_gegeneraliseerd'
+		{
+			attribute<string>    name                                            := replace(AsItemName(statnaam), 'Fryslân', 'Friesland');
+			container V := for_each_nedv(name, string(id(.))+'[..]', void, .);
+		}
+	}
+	
+	unit<uint32> NL0 : nrofrows = 1
+	{
+		attribute<rdc>  Geometry (poly)               := union_data(., union_polygon(CBS/last/gemeente/geometry[rdc_mm])[rdc]);
+		attribute<string>     name                          : ['Nederland'];
+	}
+	unit<uint32> NL := union_unit(NL0)
+	{
+		attribute<rdc>  Geometry (poly)               := union_data(., NL0/geometry);
+		attribute<string>     name                          := const('Nederland',.);
+		
+		attribute<.>          per_rdc_25m     (rdc_25m)     := poly2grid(geometry, rdc_25m);
+		attribute<.>          per_rdc_250m    (rdc_250m)    := poly2grid(geometry, rdc_250m);
+		attribute<bool>       IsNederland_25m  (rdc_25m)    := per_rdc_25m == 0;
+		attribute<bool>       IsNederland_250m (rdc_250m)   := per_rdc_250m == 0;
+		
+		parameter<bool> HeeftBuitengebied: [false];
+		
+		container V := for_each_nedv(name, string(id(.))+'[..]', void, .);
+		
+		// unit<uint32> NL_BoundingBox : nrofrows = 1
+		// {
+			// parameter<rdc_mm>  union_NL    (poly)     :=  union_polygon(NVM/geometry[rdc_mm]);
+			// parameter<rdc_mm>  BoudingBox_minus_NL (poly)   := union_polygon - union_NL;
+			
+			// unit<uint32> OutsideNL : nrofrows = 1
+			// {
+				// attribute<rdc> geometry (poly) := union_data(.,BoudingBox_minus_NL[rdc]);
+			// }
+			
+			// parameter<m> x_min  := 0[m];
+			// parameter<m> x_max  := 280000[m]; 
+			// parameter<m> y_min  := 300000[m];
+			// parameter<m> y_max  := 625000[m];
+			
+			// parameter<rdc> top_left     := point(x_min,y_max, rdc);
+			// parameter<rdc> top_right    := point(x_max,y_max, rdc);
+			// parameter<rdc> bottom_left  := point(x_min,y_min, rdc);
+			// parameter<rdc> bottom_right := point(x_max,y_min, rdc);
+			
+			// unit<uint32>              point_set    : nrofrows = 5
+			// {
+				// attribute<rdc>      point        := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
+				// attribute<NL_BoundingBox> sequence_rel := const(0, .);
+				// attribute<.>              ordinal      := id(.);
+			// }
+			
+			// attribute<rdc>       polygon (poly)      := points2sequence(point_set/point, point_set/sequence_rel, point_set/ordinal);
+			// parameter<rdc_mm>    union_polygon (poly) := union_polygon(polygon[rdc_mm]);
+		// }
+	}
+}

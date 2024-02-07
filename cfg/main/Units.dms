@@ -1,0 +1,9 @@
+container Units
+{
+	unit<Float32> m      := BaseUnit('m', float32);
+	unit<Float32> km     := 1000.0 * m;
+
+	unit<Float32> m2     := m * m;
+	unit<Float32> km2    := km * km;
+	unit<float32> ha     := 10000.0 * m2;
+}

@@ -1,0 +1,57 @@
+container Geography: Using = "Units"
+{
+	unit<fpoint> rdc_base   : DialogData = "ngr_layer", SpatialReference = "EPSG:28992";
+	unit<fpoint> rdc        := range(rdc_base, point(y_min, x_min), point(y_max, x_max));
+	unit<ipoint> rdc_mm     := gridset(rdc,  point(0.001, 0.001), point(0.0, 0.0), ipoint); 
+	
+	unit<uint32> Gridsizes : nrofrows = 7
+	{
+		attribute<string>  size_str : ['5', '10', '25', '100', '250', '500'];
+		attribute<m>       size     := size_str[m];
+		attribute<string>  name     := 'size_'+string(size)+'m';
+	}
+	
+	unit<ipoint> rdc_5m    := perGridsize/size_5m/domain;
+	unit<ipoint> rdc_10m   := perGridsize/size_10m/domain;
+	unit<ipoint> rdc_25m   := perGridsize/size_25m/domain;
+	unit<ipoint> rdc_100m  := perGridsize/size_100m/domain;
+	unit<ipoint> rdc_250m  := perGridsize/size_250m/domain;
+	unit<ipoint> rdc_500m  := perGridsize/size_500m/domain;
+	
+	parameter<m> x_min := 0[m];
+	parameter<m> x_max := 280000[m];
+	parameter<m> y_min := 300000[m];
+	parameter<m> y_max := 625000[m];
+	
+	unit<uint32> StudyArea : nrofrows = 1
+	{
+		parameter<rdc> top_left     := point_xy(119000[m], 494000[m], rdc); //XY
+		parameter<rdc> top_right    := point_xy(134000[m], 494000[m], rdc);
+		parameter<rdc> bottom_left  := point_xy(119000[m], 476000[m], rdc);
+		parameter<rdc> bottom_right := point_xy(134000[m], 476000[m], rdc);
+		
+		unit<uint32> point_set : nrofrows = 5
+		{
+			attribute<rdc>  geometry     := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
+			attribute<..>   sequence_rel := const(0, .);
+			attribute<.>    ordinal      := id(.);
+		}
+		
+		attribute<rdc> geometry (poly)      := points2sequence(point_set/geometry, point_set/sequence_rel, point_set/ordinal);
+	}
+	
+	container perGridsize := for_each_ne(Gridsizes/name, 'Create_GridDomain_T('+string(Gridsizes/size)+'[m])');
+	
+	unit<uint8> Matrix : nrofrows = 23
+	{
+		attribute<m> Size : [ 0, 17, 25, 50, 100, 150, 200, 300, 500, 625, 1000, 1250, 1500, 2000, 2250, 2500, 3250, 5000, 5250, 10000, 10250, 20000, 20250 ];
+		attribute<string> name := 'pot'+string(size)+'m';
+	}
+	
+	container Distmatrices_25m  := for_each_nex(Matrix/name, 'Distmatrices/Impl_25m/'+Matrix/name+'/PotRange', spoint);
+	container Distmatrices_100m := for_each_nex(Matrix/name, 'Distmatrices/Impl_100m/'+Matrix/name+'/PotRange', spoint);
+	
+	#include<Distmatrices.dms>
+	#include<Create_GridDomain_T.dms>
+	#include<ngr_layer.dms> // reference WMS layer
+}
