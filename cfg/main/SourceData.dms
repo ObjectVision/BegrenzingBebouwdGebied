@@ -36,6 +36,9 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 		, 	StorageReadOnly = "true"
 		{
 			attribute<rdc>                 Geometry    (poly);
+			unit<uint32> seq2p := sequence2points(geometry);
+			attribute<rdc>                 Geometry_simpl    (poly) := bg_simplify_multi_polygon(geometry, 1.0);
+			unit<uint32> seq2p_simpl := sequence2points(Geometry_simpl);
 			attribute<gg_src>              CBSKlasse_rel_2017;
 		}
 		

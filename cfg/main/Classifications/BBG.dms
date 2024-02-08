@@ -103,8 +103,8 @@ container BBG
 		
 		attribute<Hoofdklassen> Hoofdklassen_rel := switch(
 														case(IsPrimairBebouwdGebied, Hoofdklassen/v/Primair)
-														,case(IsSecundairBebouwdGebied_A, Hoofdklassen/v/Secondair_A)
-														,case(IsSecundairBebouwdGebied_B, Hoofdklassen/v/Secondair_B)
+														,case(IsSecundairBebouwdGebied_A, Hoofdklassen/v/Secundair_A)
+														,case(IsSecundairBebouwdGebied_B, Hoofdklassen/v/Secundair_B)
 														,case(IsBuitengebied, Hoofdklassen/v/Buitengebied)
 														, null_b[Hoofdklassen]
 													);
@@ -117,8 +117,8 @@ container BBG
 	
 	unit<uint8> Hoofdklassen : nrofrows = 4
 	{
-		attribute<string> name   : ['Primair','Secondair_A', 'Secondair_B', 'Buitengebied'];
-		attribute<string> label  : ['Primair bebouwd gebied','Secondair bebouwd gebied (algemeen)', 'Secondair bebouwd gebied (infrastructuur)', 'Buitengebied'];
+		attribute<string> name   : ['Primair','Secundair_A', 'Secundair_B', 'Buitengebied'];
+		attribute<string> label  : ['Primair bebouwd gebied','Secundair bebouwd gebied (algemeen)', 'Secundair bebouwd gebied (infrastructuur)', 'Buitengebied'];
 		container V := for_each_nedv(Name, string(ID(.))+'[..]', void, .);
 	}
 }
