@@ -30,9 +30,7 @@ container RegioIndelingen
 		,	StorageReadOnly = "True"
 		,	SyncMode        = "alltables"
 		,	DialogData      = "rdc"
-		,	URL             = "https://www.cbs.nl/nl-nl/dossier/nederland-regionaal/geografische-data/cbs-gebiedsindelingen"
-		{
-		}
+		,	URL             = "https://www.cbs.nl/nl-nl/dossier/nederland-regionaal/geografische-data/cbs-gebiedsindelingen";
 		
 		unit<uint32> Buurt     := ='gpkg/cbs_buurt_'+jaar+gegeneraliseerd_str
 		{

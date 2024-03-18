@@ -15,6 +15,8 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	// secundair wordt primair als ingesloten door primair
 	// secundair afgesloten van buitengebied door infra (wanneer deze infra breder is dan 32 meter en niet water/waterwegen)
 	
+	// identificatie omsloten methode: buffer een parkje, dan dyna_point, dan kijk of alle punten in de bebouwdgebied poly liggen. If yes, dan is het volledig omsloten.
+	
 	unit<uint32> PrimairBebouwdGebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/primair)
 	{
 		attribute<rdc> geometry               (poly) := Stap0/geometry_rd[org_rel];
@@ -22,10 +24,11 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 		// Rond het primair bebouwd gebied (bepaald in stap 0) wordt een zogenaamde “samengestelde buffer” gemaakt. Een samengestelde buffer zorgt er voor dat primair gebied dat slechts door een smalle strook buitengebied
 		// van elkaar wordt gescheiden aan elkaar groeit. De bufferafstand is vastgesteld op 16 meter;
 		attribute<rdc> samengestelde_buffer   (poly) := bg_buffer_multi_polygon(geometry, Stap1_samengestelde_buffer_size[float64], 16b); 
-		unit<uint32> dissolved_samengestelde_buffer := split_union_polygon(samengestelde_buffer[rdc_mm])
+		unit<uint32> dissolved_samengestelde_buffer  := split_union_polygon(samengestelde_buffer[rdc_mm])
 		{
 		}
 	}
+		attribute<rdc> geometry (poly, PrimairBebouwdGebied/dissolved_samengestelde_buffer) := outer_polygon(PrimairBebouwdGebied/dissolved_samengestelde_buffer/geometry)[rdc];
 	
 	unit<uint32> SecundairBebouwdGebied_A := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/secundair_A)
 	{
