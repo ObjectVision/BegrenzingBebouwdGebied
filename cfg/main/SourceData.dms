@@ -23,6 +23,7 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 			attribute<gg_src> CBSKlasse_rel_2017 := bbg_ek/CBSKlasseNr[value(BG17, bbg_ek)];
 		}
 		
+		
 		unit<uint32> MakeStudyArea := select_with_org_rel(BBG_Reeks_1996_2017/IsStudyArea)
 		,	StorageName     = "%LocalDataProjDir%/BBG/StudyArea.fss"
 		{
@@ -36,10 +37,38 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 		, 	StorageReadOnly = "true"
 		{
 			attribute<rdc>                 Geometry    (poly);
-			unit<uint32> seq2p := sequence2points(geometry);
-			attribute<rdc>                 Geometry_simpl    (poly) := bg_simplify_multi_polygon(geometry, 5.0);
-			unit<uint32> seq2p_simpl := sequence2points(Geometry_simpl);
+			// unit<uint32> seq2p := sequence2points(geometry);
+			attribute<rdc>                 Geometry_simpl    (poly) := bg_simplify_multi_polygon(geometry, 10.0);
+			// unit<uint32> seq2p_simpl := sequence2points(Geometry_simpl);
 			attribute<gg_src>              CBSKlasse_rel_2017;
+			
+			//adhoc
+			attribute<rdc> test (poly) := (Geometry_simpl[rdc_mm] * smaller_selection[rdc_mm])[rdc];
+			
+			parameter<m> x_min := 125000[m];
+			parameter<m> x_max := 130000[m];
+			parameter<m> y_min := 481000[m];
+			parameter<m> y_max := 489000[m];
+			
+			parameter<rdc> top_left     := point_xy(x_min, y_max, rdc); 
+			parameter<rdc> top_right    := point_xy(x_max, y_max, rdc);
+			parameter<rdc> bottom_left  := point_xy(x_min, y_min, rdc);
+			parameter<rdc> bottom_right := point_xy(x_max, y_min, rdc);
+			
+			unit<uint32> point_set : nrofrows = 5
+			{
+				attribute<rdc>  geometry     := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
+				attribute<..>   sequence_rel := const(0, .);
+				attribute<.>    ordinal      := id(.);
+			}
+			
+			attribute<rdc> smaller_selection (poly)      := points2sequence(point_set/geometry, point_set/sequence_rel, point_set/ordinal);
+			
 		}
 	}
+	
+	attribute<uint16> Verharding (rdc_10m)
+	: StorageName = "%SourceDataDir%/Overig/imperviousness_2018_010m_NL_rdc.tif"
+	,	StorageReadOnly = "True"
+	,	LazyCalculated = "true";
 }

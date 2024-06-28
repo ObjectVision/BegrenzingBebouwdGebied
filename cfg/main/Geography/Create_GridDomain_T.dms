@@ -1,15 +1,15 @@
 Template Create_GridDomain_T
 {
 	parameter<m>     gridsize;
-	parameter<int32> nr_cols := int32((x_max - x_min) / gridsize);
-	parameter<int32> nr_rows := int32((y_max - y_min) / gridsize);
+	parameter<int32> nr_cols := int32((StudyArea/ChosenArea/x_max - StudyArea/ChosenArea/x_min) / gridsize);
+	parameter<int32> nr_rows := int32((StudyArea/ChosenArea/y_max - StudyArea/ChosenArea/y_min) / gridsize);
 	
 	unit<ipoint> domain :=
 		range(
 			 gridset(
 				 rdc
 				,point_yx(-gridsize, gridsize, rdc)
-				,point_yx(y_max, x_min, rdc)
+				,point_yx(StudyArea/ChosenArea/y_max, StudyArea/ChosenArea/x_min, rdc)
 				,ipoint
 			)
 			,point_yx(0i, 0i)

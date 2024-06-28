@@ -1,4 +1,4 @@
 ﻿container ModelParameters : using = "units"
 {
-	
+	parameter<string> StudyAreaName := 'Amsterdam';
 }

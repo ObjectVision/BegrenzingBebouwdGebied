@@ -1,6 +1,7 @@
 container Analysis : using = "units;classifications;geography;classifications/bbg"
 {
 	parameter<m> Stap1_samengestelde_buffer_size := 16[m];
+	parameter<m> Stap1_small_buffer_size         := 5[m];
 	
 	
 	unit<uint32> BBG := /SourceData/BBG/StudyArea;
@@ -9,61 +10,197 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	{
 		attribute<rdc>          geometry_rd   (poly) := geometry[rdc];
 		attribute<Hoofdklassen> Hoofdklassen_rel     := part_rel;
+		attribute<.>            per_10m    (rdc_10m) := poly2grid(geometry_rd, rdc_10m);
+		attribute<float32>      Avg_verharding       := mean(float32(SourceData/Verharding), per_10m);
 	}
-	
-	//stap 1: Bepalen of secundair gebied omsloten is.
-	// secundair wordt primair als ingesloten door primair
-	// secundair afgesloten van buitengebied door infra (wanneer deze infra breder is dan 32 meter en niet water/waterwegen)
-	
-	// identificatie omsloten methode: buffer een parkje, dan dyna_point, dan kijk of alle punten in de bebouwdgebied poly liggen. If yes, dan is het volledig omsloten.
-	
-	unit<uint32> PrimairBebouwdGebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/primair)
+
+	container Stap1
 	{
-		attribute<rdc> geometry               (poly) := Stap0/geometry_rd[org_rel];
-		
-		// Rond het primair bebouwd gebied (bepaald in stap 0) wordt een zogenaamde “samengestelde buffer” gemaakt. Een samengestelde buffer zorgt er voor dat primair gebied dat slechts door een smalle strook buitengebied
-		// van elkaar wordt gescheiden aan elkaar groeit. De bufferafstand is vastgesteld op 16 meter;
-		attribute<rdc> samengestelde_buffer   (poly) := bg_buffer_multi_polygon(geometry, Stap1_samengestelde_buffer_size[float64], 16b); 
-		unit<uint32> dissolved_samengestelde_buffer  := split_union_polygon(samengestelde_buffer[rdc_mm])
+		unit<uint32> PrimairBebouwdGebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/primair)
 		{
+			attribute<rdc> geometry               (poly) := Stap0/geometry_rd[org_rel];
+			
+			// Rond het primair bebouwd gebied (bepaald in stap 0) wordt een zogenaamde “samengestelde buffer” gemaakt. Een samengestelde buffer zorgt er voor dat primair gebied dat slechts door een smalle strook buitengebied
+			// van elkaar wordt gescheiden aan elkaar groeit. De bufferafstand is vastgesteld op 16 meter;
+			attribute<rdc> samengestelde_buffer_src                                   (poly) := bg_buffer_multi_polygon(geometry, Stap1_samengestelde_buffer_size[float64], 16b); 
+			unit<uint32>   dissolved_samengestelde_buffer                                    := split_union_polygon(samengestelde_buffer_src[rdc_mm]);
+			attribute<rdc> samengestelde_buffer       (poly, dissolved_samengestelde_buffer) := dissolved_samengestelde_buffer/geometry[rdc];
+			attribute<rdc> samengestelde_buffer_outer (poly, dissolved_samengestelde_buffer) := bg_outer_multi_polygon(dissolved_samengestelde_buffer/geometry)[rdc];
+		}
+		
+		unit<uint32> SecundairBebouwdGebied_A := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/secundair_A)
+		{
+			attribute<rdc> geometry                 (poly) := Stap0/geometry_rd[org_rel];
+			attribute<rdc> samengestelde_buffer     (poly) := bg_buffer_multi_polygon(geometry, Stap1_samengestelde_buffer_size[float64], 16b); 
+			
+			//stap 1: identificatie omsloten door primair methode: buffer een parkje, dan dyna_point, dan kijk of alle punten in de bebouwdgebied poly liggen. If yes, dan is het volledig omsloten.
+			attribute<rdc> buffer               (poly) := bg_buffer_multi_polygon(geometry, Stap1_small_buffer_size[float64], 16b); 
+			unit<uint32>   arc2segments                := arc2segm(buffer)
+			{
+				attribute<SecundairBebouwdGebied_A> SBGA_rel := sequence_rel;
+			}
+			unit<uint32>   dynapoints                  := dyna_point_with_ends(arc2segments/point, arc2segments/nextpoint, 5f), DialogData = "point", DialogType = "map"
+			{
+				attribute<SecundairBebouwdGebied_A> SBGA_rel                   := arc2segments/SBGA_rel[sequence_rel];
+				attribute<bool>                     IsPointInPrimair_w_SABG    := IsDefined(point_in_polygon(point, Primair_with_SA_x_BG/geometry));
+				attribute<bool>                     IsPointInGrootBuitengebied := IsDefined(point_in_polygon(point, Groot_Buitengebied/geometry));
+			}
+			
+			attribute<bool> IsOmslotenSecundair_doorPrimair_w_SABG  := all(dynapoints/IsPointInPrimair_w_SABG, dynapoints/SBGA_rel);
+			unit<uint32>    OmslotenSecundair_doorPrimair_w_SABG    := select_with_org_rel(IsOmslotenSecundair_doorPrimair_w_SABG)
+			{
+				attribute<rdc> geometry             (poly) := ../geometry[org_rel];
+			}
+			attribute<bool> IsAangrenzendSecundair_metGrootBG  := any(dynapoints/IsPointInGrootBuitengebied, dynapoints/SBGA_rel);
+			unit<uint32>    AangrenzendSecundair_metGrootBG    := select_with_org_rel(IsAangrenzendSecundair_metGrootBG)
+			{
+				attribute<rdc> geometry             (poly) := ../geometry[org_rel];
+			}
+			
+			//stap 1: identificatie secundair gebied dat door infrastructuur wordt afgesloten van het buitengebied als omsloten
+			unit<uint32> Secundair_A_x_Buitengebied := overlay_polygon(SecundairBebouwdGebied_A/samengestelde_buffer[rdc_mm], Buitengebied/geometry[rdc_mm]);
+			unit<uint32> Primair_with_SA_x_BG := union_unit(PrimairBebouwdGebied, Secundair_A_x_Buitengebied)
+			{
+				attribute<rdc> geometry (poly) := union_data(., PrimairBebouwdGebied/samengestelde_buffer_src, Secundair_A_x_Buitengebied/geometry[rdc]);
+ 			}
+			
+			
+			// Al het buitengebied dat buiten het primair gebied ligt (buiten de samengestelde buffer) en groter is dan 25 ha wordt geselecteerd. 
+			// Vanuit deze selectie wordt al het secundair gebied geselecteerd.
+			// Het resultaat is dus het secundair gebied verbonden aan het buitengebied groter dan 25 ha. 
+			// Indien men het overige secundair gebied selecteert geeft dat als resultaat het ingesloten (omsloten) secundair gebied.
+			unit<uint32> Groot_Buitengebied := Buitengebied/Buitengebied_zonderPrimBuffer/Groot_Buitengebied;
+		}
+		
+		unit<uint32> SecundairBebouwdGebied_B := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/secundair_B)
+		{
+			attribute<rdc> geometry                 (poly) := Stap0/geometry_rd[org_rel];
+		}
+		// stap 1: identifcatie secundair afgesloten van buitengebied door infra (wanneer deze infra breder is dan 32 meter en niet water/waterwegen)
+			//De samengestelde buffer van het primaire gebied wordt geconfronteerd met de laag met het buitengebied zodat buitengebiedpolygonen worden doorsneden. Zo ontstaan er twee soorten buitengebied: smalle stroken 
+			// buitengebied liggend tussen primair gebied en buitengebied buiten het primair gebied. Bovendien moet buitengebied aan de voorwaarde voldoen dat het minimaal 25 ha groot is. 
+		
+		unit<uint32> Buitengebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/buitengebied)
+		{
+			attribute<rdc>    geometry                      (poly) := Stap0/geometry_rd[org_rel];
+			unit<uint32>      dissolved                            := split_union_polygon(geometry[rdc_mm]);
+			attribute<rdc>    geometry_dissolved (poly, dissolved) := dissolved/geometry[rdc];
+			
+			// Buitengebied binnen de bebouwde kern met een kleiner oppervlak wordt tot bebouwd gebied gerekend;
+			attribute<ha>     area                     (dissolved) := area(geometry_dissolved, m2)[ha];
+			attribute<bool>   IsKleinerDan25ha         (dissolved) := area < 25[ha];
+			
+			unit<uint32>    KleinerDan25ha := select_with_org_rel(IsKleinerDan25ha)
+			{
+				attribute<rdc> geometry             (poly) := ../geometry_dissolved[org_rel];
+				attribute<rdc> buffer               (poly) := bg_buffer_multi_polygon(geometry, Stap1_small_buffer_size[float64], 16b); 
+				unit<uint32>   arc2segments                := arc2segm(buffer)
+				{
+					attribute<KleinerDan25ha> KleinerDan25ha_rel  := sequence_rel;
+					attribute<dissolved>      BG_rel              := KleinerDan25ha/org_rel[sequence_rel];
+				}
+				unit<uint32>   dynapoints                  := dyna_point_with_ends(arc2segments/point, arc2segments/nextpoint, 5f), DialogData = "point", DialogType = "map"
+				{
+					attribute<KleinerDan25ha> KleinerDan25ha_rel       := arc2segments/KleinerDan25ha_rel[sequence_rel];
+					attribute<dissolved>      BG_rel                   := arc2segments/BG_rel[sequence_rel];
+					attribute<bool>           IsPointInPrimairBebouwd  := IsDefined(point_in_polygon(point, PrimairBebouwdGebied/samengestelde_buffer_outer));
+				}
+				attribute<bool> IsOmslotenKleinBG_doorPrimair  := all(KleinerDan25ha/dynapoints/IsPointInPrimairBebouwd, KleinerDan25ha/dynapoints/KleinerDan25ha_rel);
+			}
+			
+			attribute<bool> IsOmslotenKleinBG_doorPrimair (dissolved) := KleinerDan25ha/IsOmslotenKleinBG_doorPrimair[invert(KleinerDan25ha/org_rel)];
+			unit<uint32>    OmslotenKleinBG_doorPrimair    := select_with_org_rel(IsOmslotenKleinBG_doorPrimair)
+			{
+				attribute<rdc> geometry             (poly) := ../geometry_dissolved[org_rel];
+			}
+			
+			
+			
+			// voor selectie secundair gebied aangrenzen aan klein buitengebied.
+			unit<uint32> PrimairBuffer_x_Buitengebied := overlay_polygon(PrimairBebouwdGebied/samengestelde_buffer_src[rdc_mm], Buitengebied/geometry[rdc_mm])
+			{
+				parameter<rdc_mm> union (poly) := union_polygon(geometry);
+			}
+			attribute<rdc> WithoutPrimairBuffer (poly) := (geometry[rdc_mm] - PrimairBuffer_x_Buitengebied/union)[rdc];
+			unit<uint32> Buitengebied_zonderPrimBuffer := split_union_polygon(Buitengebied/WithoutPrimairBuffer[rdc_mm])
+			{
+				attribute<ha>   area            := area(geometry[rdc], m2)[ha];
+				attribute<bool> IsGroterDan25ha := area >= 25[ha];
+				
+				unit<uint32> Groot_Buitengebied := select_with_org_rel(IsGroterDan25ha)
+				{
+					attribute<rdc> geometry             (poly) := ../geometry[org_rel][rdc];
+				}
+			}
+		}
+		
+		
+			
+		container Results
+		{
+			attribute<rdc> Primair_basis                                                                  (poly, PrimairBebouwdGebied) := PrimairBebouwdGebied/geometry; 
+			
+			unit<uint32>   Secundair_Omsloten := union_unit(SecundairBebouwdGebied_A/OmslotenSecundair_doorPrimair_w_SABG, SecundairBebouwdGebied_A/AangrenzendSecundair_metGrootBG)
+			{
+				attribute<rdc> geometry (poly) := union_data(., SecundairBebouwdGebied_A/OmslotenSecundair_doorPrimair_w_SABG/geometry, SecundairBebouwdGebied_A/AangrenzendSecundair_metGrootBG/geometry);
+			}
+			
+			attribute<rdc> KleinBuitengebiedBinnenPrimair                            (poly, Buitengebied/OmslotenKleinBG_doorPrimair) := Buitengebied/OmslotenKleinBG_doorPrimair/geometry;
+			
+			unit<uint32> BebouwdGebied := union_unit(PrimairBebouwdGebied, Secundair_Omsloten)
+			{
+				attribute<rdc> geometry (poly) := union_data(., PrimairBebouwdGebied/geometry, Secundair_Omsloten/geometry);
+				unit<uint32>   Dissolve := split_union_polygon(geometry[rdc_mm]);
+			}
+			
+			// fpolygon( ipolygon(INPUT) * ipolygon(CLIP_FEATURE))
+			
+			attribute<rdc_mm> Secundair_NietOmsloten (poly, SecundairBebouwdGebied_A) := SecundairBebouwdGebied_A/geometry[rdc_mm] - union_polygon(Secundair_Omsloten/geometry[rdc_mm]);
+			unit<uint32> Secundair_NietOmsloten_Dissolved := split_union_polygon(Secundair_NietOmsloten[rdc_mm]);
+			
+			unit<uint32> OnbebouwdGebied := union_unit(Buitengebied/Dissolved, Secundair_NietOmsloten_Dissolved) 
+			{
+				attribute<rdc> geometry (poly) := union_data(., Buitengebied/geometry_dissolved, Secundair_NietOmsloten_Dissolved/geometry[rdc]);
+			}
+			
+			unit<uint32> Result := union_unit(BebouwdGebied, OnbebouwdGebied, SecundairBebouwdGebied_B) 
+			{
+				attribute<rdc>                    geometry            (poly) := union_data(., BebouwdGebied/geometry, OnbebouwdGebied/geometry, SecundairBebouwdGebied_B/geometry);
+				attribute<Bebouwd_Intermediate_K> Bebouwd_Intermediate_K_rel := union_data(., const(Bebouwd_Intermediate_K/V/Bebouwd, BebouwdGebied), const(Bebouwd_Intermediate_K/V/Onbebouwd, OnbebouwdGebied), const(Bebouwd_Intermediate_K/V/infrastructuur, SecundairBebouwdGebied_B));
+			}
+			
+			
+			container FindOverlap := FindOverlap_T(Result);
+			
+			Template FindOverlap_T
+			{
+				unit<uint32> src_poly;
+				///
+				
+				// the  polygon_connectivity results in the set of connected/overlapping polygons 
+				unit<uint32> overlap_vector := polygon_connectivity(ipolygon(src_poly/geometry[rdc_mm]))
+				{
+					attribute<rdc>     geometry_F1 (poly) := src_poly/geometry[rdc][F1];
+					attribute<rdc>     geometry_F2 (poly) := src_poly/geometry[rdc][F2];
+			
+					attribute<rdc_mm>  intersect   (poly) := ipolygon(geometry_F1[rdc_mm]) * ipolygon(geometry_F2[rdc_mm]);
+					attribute<m2>      area               := area(intersect[rdc], m2);
+				}
+
+				unit<uint32> met_overlap_vector := select_with_org_rel(overlap_vector/area > 0[m2])
+				{
+					attribute<rdc>     geometry    (poly) := value(overlap_vector/intersect[org_rel], rdc);
+					attribute<m2>      area               := overlap_vector/area[org_rel];
+				}
+			}
 		}
 	}
-		attribute<rdc> geometry (poly, PrimairBebouwdGebied/dissolved_samengestelde_buffer) := outer_polygon(PrimairBebouwdGebied/dissolved_samengestelde_buffer/geometry)[rdc];
-	
-	unit<uint32> SecundairBebouwdGebied_A := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/secundair_A)
+	container Stap2
 	{
-		attribute<rdc> geometry             (poly) := Stap0/geometry_rd[org_rel];
-		attribute<rdc> WithoutPrimairBuffer (poly) := (geometry[rdc_mm] - PrimairBuffer_x_Secundair_A/union)[rdc];
+		unit<uint32> Stap1 := Analysis/Stap1/Results/Result;
+		attribute<uint16> Verharding (rdc_10m) := SourceData/Verharding;
+		
+		
+		
 	}
-	
-	// unit<uint32> Buitengebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/buitengebied)
-	// {
-		// attribute<rdc> geometry             (poly) := Stap0/geometry_rd[org_rel];
-		// attribute<rdc> WithoutPrimairBuffer (poly) := (geometry[rdc_mm] - PrimairBuffer_x_Buitengebied/union)[rdc];
-	// }
-	
-	//De samengestelde buffer van het primaire gebied wordt geconfronteerd met de laag met het buitengebied zodat buitengebiedpolygonen worden doorsneden. Zo ontstaan er twee soorten buitengebied: smalle stroken 
-	// buitengebied liggend tussen primair gebied en buitengebied buiten het primair gebied. Bovendien moet buitengebied aan de voorwaarde voldoen dat het minimaal 25 ha groot is. Buitengebied binnen de 
-	// bebouwde kern met een kleiner oppervlak wordt tot bebouwd gebied gerekend;
-	unit<uint32> PrimairBuffer_x_Secundair_A := overlay_polygon(PrimairBebouwdGebied/dissolved_samengestelde_buffer/geometry, SecundairBebouwdGebied_A/geometry[rdc_mm])
-	{
-		parameter<rdc_mm> union (poly) := union_polygon(geometry);
-	}
-	// unit<uint32> PrimairBuffer_x_Buitengebied := overlay_polygon(PrimairBebouwdGebied/dissolved_samengestelde_buffer/geometry, Buitengebied/geometry[rdc_mm])
-	// {
-		// parameter<rdc_mm> union (poly) := union_polygon(geometry);
-	// }
-	
-	unit<uint32> Secundair_A_zonderPrimBuffer := split_union_polygon(SecundairBebouwdGebied_A/WithoutPrimairBuffer[rdc_mm])
-	{
-		attribute<ha>   area            := area(geometry[rdc], m2)[ha];
-		attribute<bool> IsGroterDan25ha := area >= 25[ha];
-	}
-
-	// unit<uint32> Buitengebied_zonderPrimBuffer := split_union_polygon(Buitengebied/WithoutPrimairBuffer[rdc_mm])
-	// {
-		// attribute<ha> area := area(geometry[rdc], m2)[ha];
-		// attribute<bool> IsGroterDan25ha := area >= 25[ha];
-	// }
-
 }

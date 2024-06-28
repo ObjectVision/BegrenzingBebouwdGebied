@@ -115,10 +115,19 @@ container BBG
 		
 	}
 	
-	unit<uint8> Hoofdklassen : nrofrows = 4
+	unit<uint8> Hoofdklassen := cat_range(uint8, 0b, 4b)
 	{
-		attribute<string> name   : ['Primair','Secundair_A', 'Secundair_B', 'Buitengebied'];
-		attribute<string> label  : ['Primair bebouwd gebied','Secundair bebouwd gebied (algemeen)', 'Secundair bebouwd gebied (infrastructuur)', 'Buitengebied'];
+		attribute<string> name            : ['Primair','Secundair_A', 'Secundair_B', 'Buitengebied'];
+		attribute<string> label           : ['Primair bebouwd gebied','Secundair bebouwd gebied (algemeen)', 'Secundair bebouwd gebied (infrastructuur)', 'Buitengebied'];
+		attribute<uint32> BrushColor      : [rgb(254, 50,0), rgb(254,150,0), rgb(254,238,0), rgb(233,255,190)],  DialogType = "BrushColor";
+		container V := for_each_nedv(Name, string(ID(.))+'[..]', void, .);
+	}
+	
+	unit<uint8> Bebouwd_Intermediate_K := cat_range(uint8, 0b, 3b)
+	{
+		attribute<string> name            : ['Bebouwd','Onbebouwd', 'infrastructuur'];
+		attribute<string> label           : ['Bebouwd gebied','Onbebouwd gebied', 'Infrastructuur'];
+		attribute<uint32> BrushColor      : [rgb(254, 50,0), rgb(233,255,190), rgb(254,238,0)],  DialogType = "BrushColor";
 		container V := for_each_nedv(Name, string(ID(.))+'[..]', void, .);
 	}
 }
