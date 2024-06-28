@@ -5,14 +5,8 @@ Your branch is up to date with 'origin/main'.
 Changes not staged for commit:
   (use "git add <file>..." to update what will be committed)
   (use "git restore <file>..." to discard changes in working directory)
-	modified:   Odijk M, van Bleek B, Louwerse P. (2004) Begrenzing Bebouwd Gebied 2000.pdf
-	modified:   cfg/main/Analysis.dms
-	modified:   cfg/main/Classifications/BBG.dms
-	modified:   cfg/main/Geography.dms
-	modified:   cfg/main/Geography/Create_GridDomain_T.dms
-	modified:   cfg/main/ModelParameters.dms
 	modified:   cfg/main/SourceData.dms
 	modified:   git.txt
 
 no changes added to commit (use "git add" and/or "git commit -a")
-7ec49f03c03e9a62bb66418e48fc6a5a174393e1
+d80e24a383eac8ef77450802471246e6e3a7eca4

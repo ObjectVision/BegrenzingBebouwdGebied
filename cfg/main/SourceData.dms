@@ -43,7 +43,8 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 			attribute<gg_src>              CBSKlasse_rel_2017;
 			
 			//adhoc
-			attribute<rdc> test (poly) := (Geometry_simpl[rdc_mm] * smaller_selection[rdc_mm])[rdc];
+			attribute<rdc> test (poly) := (Geometry[rdc_mm] * smaller_selection[rdc_mm])[rdc];
+			attribute<rdc> test2(poly) :=  bg_intersect(Geometry,  smaller_selection);
 			
 			parameter<m> x_min := 125000[m];
 			parameter<m> x_max := 130000[m];
@@ -58,12 +59,9 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 			unit<uint32> point_set : nrofrows = 5
 			{
 				attribute<rdc>  geometry     := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
-				attribute<..>   sequence_rel := const(0, .);
-				attribute<.>    ordinal      := id(.);
 			}
 			
-			attribute<rdc> smaller_selection (poly)      := points2sequence(point_set/geometry, point_set/sequence_rel, point_set/ordinal);
-			
+			parameter<rdc> smaller_selection (poly) := points2sequence(point_set/geometry);
 		}
 	}
 	
