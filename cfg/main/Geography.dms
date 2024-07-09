@@ -50,7 +50,8 @@ container Geography: Using = "Units"
 			attribute<.>    ordinal      := id(.);
 		}
 		
-		attribute<rdc> geometry (poly)      := points2sequence(point_set/geometry, point_set/sequence_rel, point_set/ordinal);
+		// attribute<rdc> geometry (poly)      := points2sequence(point_set/geometry, point_set/sequence_rel, point_set/ordinal);
+		parameter<rdc> geometry (poly)      := points2sequence(point_set/geometry);
 	}
 	
 	container perGridsize := for_each_ne(Gridsizes/name, 'Create_GridDomain_T('+string(Gridsizes/size)+'[m])');

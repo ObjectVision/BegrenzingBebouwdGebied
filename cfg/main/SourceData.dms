@@ -11,7 +11,7 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 		,	Source          = "https:\//geodata.cbs.nl/files/Bodemgebruik/BBG2017/CBS_MutatiebestandBBG1996_2017_v1_GPKG.zip"
 		{
 			attribute<rdc>    Geometry (poly);
-			attribute<bool>   IsStudyArea := IsDefined(point_in_polygon(centroid_or_mid(geometry), Geography/StudyArea/geometry));
+			// attribute<bool>   IsStudyArea := IsDefined(point_in_polygon(centroid_or_mid(geometry), Geography/StudyArea/geometry));
 			attribute<gg_src> CBSKlasse_rel_1996 := bbg_ek/CBSKlasseNr[value(BG96, bbg_ek)];
 			attribute<gg_src> CBSKlasse_rel_2000 := bbg_ek/CBSKlasseNr[value(BG00, bbg_ek)];
 			attribute<gg_src> CBSKlasse_rel_2003 := bbg_ek/CBSKlasseNr[value(BG03, bbg_ek)];
@@ -21,48 +21,11 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 			attribute<gg_src> CBSKlasse_rel_2012 := bbg_ek/CBSKlasseNr[value(BG12, bbg_ek)];
 			attribute<gg_src> CBSKlasse_rel_2015 := bbg_ek/CBSKlasseNr[value(BG15, bbg_ek)];
 			attribute<gg_src> CBSKlasse_rel_2017 := bbg_ek/CBSKlasseNr[value(BG17, bbg_ek)];
+			
+			attribute<rdc> geometry_studyarea (poly) :=  bg_intersect(Geometry,  Geography/StudyArea/geometry);
 		}
 		
-		
-		unit<uint32> MakeStudyArea := select_with_org_rel(BBG_Reeks_1996_2017/IsStudyArea)
-		,	StorageName     = "%LocalDataProjDir%/BBG/StudyArea.fss"
-		{
-			attribute<rdc>                 Geometry    (poly) := BBG_Reeks_1996_2017/geometry[org_rel];
-			attribute<gg_src>              CBSKlasse_rel_2017 := BBG_Reeks_1996_2017/CBSKlasse_rel_2017[org_rel];
-			attribute<BBG_Reeks_1996_2017> org_rel            : DisableStorage = "true";
-		}
-		
-		unit<uint32> StudyArea 
-		:	StorageName     = "%LocalDataProjDir%/BBG/StudyArea.fss"
-		, 	StorageReadOnly = "true"
-		{
-			attribute<rdc>                 Geometry    (poly);
-			// unit<uint32> seq2p := sequence2points(geometry);
-			attribute<rdc>                 Geometry_simpl    (poly) := bg_simplify_multi_polygon(geometry, 10.0);
-			// unit<uint32> seq2p_simpl := sequence2points(Geometry_simpl);
-			attribute<gg_src>              CBSKlasse_rel_2017;
-			
-			//adhoc
-			attribute<rdc> test (poly) := (Geometry[rdc_mm] * smaller_selection[rdc_mm])[rdc];
-			attribute<rdc> test2(poly) :=  bg_intersect(Geometry,  smaller_selection);
-			
-			parameter<m> x_min := 125000[m];
-			parameter<m> x_max := 130000[m];
-			parameter<m> y_min := 481000[m];
-			parameter<m> y_max := 489000[m];
-			
-			parameter<rdc> top_left     := point_xy(x_min, y_max, rdc); 
-			parameter<rdc> top_right    := point_xy(x_max, y_max, rdc);
-			parameter<rdc> bottom_left  := point_xy(x_min, y_min, rdc);
-			parameter<rdc> bottom_right := point_xy(x_max, y_min, rdc);
-			
-			unit<uint32> point_set : nrofrows = 5
-			{
-				attribute<rdc>  geometry     := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
-			}
-			
-			parameter<rdc> smaller_selection (poly) := points2sequence(point_set/geometry);
-		}
+		unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2017, area(BBG_Reeks_1996_2017/geometry_studyarea, m2) > 0.1f);
 	}
 	
 	attribute<uint16> Verharding (rdc_10m)

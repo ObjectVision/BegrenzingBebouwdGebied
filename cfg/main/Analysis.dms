@@ -6,7 +6,7 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	
 	unit<uint32> BBG := /SourceData/BBG/StudyArea;
 	
-	unit<uint32> Stap0 := split_partitioned_union_polygon(BBG/geometry_simpl[rdc_mm], gg_src/Hoofdklassen_rel[BBG/CBSKlasse_rel_2017])
+	unit<uint32> Stap0 := split_partitioned_union_polygon(BBG/geometry[rdc_mm], gg_src/Hoofdklassen_rel[BBG/CBSKlasse_rel_2017])
 	{
 		attribute<rdc>          geometry_rd   (poly) := geometry[rdc];
 		attribute<Hoofdklassen> Hoofdklassen_rel     := part_rel;
@@ -58,8 +58,8 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			}
 			
 			//stap 1: identificatie secundair gebied dat door infrastructuur wordt afgesloten van het buitengebied als omsloten
-			unit<uint32> Secundair_A_x_Buitengebied := overlay_polygon(SecundairBebouwdGebied_A/samengestelde_buffer[rdc_mm], Buitengebied/geometry[rdc_mm]);
-			unit<uint32> Primair_with_SA_x_BG := union_unit(PrimairBebouwdGebied, Secundair_A_x_Buitengebied)
+			unit<uint32> Secundair_A_x_Buitengebied := bg_overlay_polygon(SecundairBebouwdGebied_A/samengestelde_buffer, Buitengebied/geometry);
+			unit<uint32> Primair_with_SA_x_BG       := union_unit(PrimairBebouwdGebied, Secundair_A_x_Buitengebied)
 			{
 				attribute<rdc> geometry (poly) := union_data(., PrimairBebouwdGebied/samengestelde_buffer_src, Secundair_A_x_Buitengebied/geometry[rdc]);
  			}
@@ -109,7 +109,7 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			}
 			
 			attribute<bool> IsOmslotenKleinBG_doorPrimair (dissolved) := KleinerDan25ha/IsOmslotenKleinBG_doorPrimair[invert(KleinerDan25ha/org_rel)];
-			unit<uint32>    OmslotenKleinBG_doorPrimair    := select_with_org_rel(IsOmslotenKleinBG_doorPrimair)
+			unit<uint32>    OmslotenKleinBG_doorPrimair               := select_with_org_rel(IsOmslotenKleinBG_doorPrimair)
 			{
 				attribute<rdc> geometry             (poly) := ../geometry_dissolved[org_rel];
 			}
@@ -117,7 +117,7 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			
 			
 			// voor selectie secundair gebied aangrenzen aan klein buitengebied.
-			unit<uint32> PrimairBuffer_x_Buitengebied := overlay_polygon(PrimairBebouwdGebied/samengestelde_buffer_src[rdc_mm], Buitengebied/geometry[rdc_mm])
+			unit<uint32> PrimairBuffer_x_Buitengebied := bg_overlay_polygon(PrimairBebouwdGebied/samengestelde_buffer_src[rdc_mm], Buitengebied/geometry[rdc_mm])
 			{
 				parameter<rdc_mm> union (poly) := union_polygon(geometry);
 			}
@@ -138,7 +138,7 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			
 		container Results
 		{
-			attribute<rdc> Primair_basis                                                                  (poly, PrimairBebouwdGebied) := PrimairBebouwdGebied/geometry; 
+			attribute<rdc> Primair_basis (poly, PrimairBebouwdGebied) := PrimairBebouwdGebied/geometry; 
 			
 			unit<uint32>   Secundair_Omsloten := union_unit(SecundairBebouwdGebied_A/OmslotenSecundair_doorPrimair_w_SABG, SecundairBebouwdGebied_A/AangrenzendSecundair_metGrootBG)
 			{
@@ -150,13 +150,13 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			unit<uint32> BebouwdGebied := union_unit(PrimairBebouwdGebied, Secundair_Omsloten)
 			{
 				attribute<rdc> geometry (poly) := union_data(., PrimairBebouwdGebied/geometry, Secundair_Omsloten/geometry);
-				unit<uint32>   Dissolve := split_union_polygon(geometry[rdc_mm]);
+				unit<uint32>   Dissolve        := split_union_polygon(geometry[rdc_mm]);
 			}
 			
 			// fpolygon( ipolygon(INPUT) * ipolygon(CLIP_FEATURE))
 			
-			attribute<rdc_mm> Secundair_NietOmsloten (poly, SecundairBebouwdGebied_A) := SecundairBebouwdGebied_A/geometry[rdc_mm] - union_polygon(Secundair_Omsloten/geometry[rdc_mm]);
-			unit<uint32> Secundair_NietOmsloten_Dissolved := split_union_polygon(Secundair_NietOmsloten[rdc_mm]);
+			attribute<rdc_mm> Secundair_NietOmsloten (poly, SecundairBebouwdGebied_A) := SecundairBebouwdGebied_A/geometry - union_polygon(Secundair_Omsloten/geometry[rdc_mm]);
+			unit<uint32>      Secundair_NietOmsloten_Dissolved := split_union_polygon(Secundair_NietOmsloten[rdc_mm]);
 			
 			unit<uint32> OnbebouwdGebied := union_unit(Buitengebied/Dissolved, Secundair_NietOmsloten_Dissolved) 
 			{
