@@ -308,6 +308,16 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			attribute<rdc_meter> geometry (poly) := BebouwdGebied/geometry;
 			attribute<float64>   area_ha         := float64(BebouwdGebied/area);
 		}
+
+		unit<uint32> Read_Result
+		:	StorageName = "='%LocalDataDir%/BegrenzingBebouwdGebied/BG'+BBG_jaar+'_'+ModelParameters/StudyAreaName+'.gpkg'"
+		,	StorageType = "gdal.vect"
+		,	StorageReadOnly = "TRUE"
+		, DialogData = "rdc_meter"
+		{
+			// attribute<rdc_meter> geometry (poly) := BebouwdGebied/geometry;
+			// attribute<float64>   area_ha         := float64(BebouwdGebied/area);
+		}
 	}
 
 }

@@ -30,10 +30,12 @@ container Geography: Using = "Units"
 		
 		container Amsterdam
 		{
-			parameter<m> x_min := 119000[m];
+			// venster afgestemd op figuur 7 van het rapport ('bebouwd gebied Amsterdam en omstreken'):
+			// westwaarts t/m Westpoort/Halfweg en noordwaarts t/m Zaandam
+			parameter<m> x_min := 106000[m];
 			parameter<m> x_max := 134000[m];
 			parameter<m> y_min := 476000[m];
-			parameter<m> y_max := 494000[m];
+			parameter<m> y_max := 498000[m];
 		}
 		
 		container ChosenArea := =ModelParameters/StudyAreaName;
