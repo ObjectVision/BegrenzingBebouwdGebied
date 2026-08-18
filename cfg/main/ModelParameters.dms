@@ -1,5 +1,5 @@
 ﻿container ModelParameters : using = "units"
 {
 	parameter<string> StudyAreaName := 'Amsterdam';
-	parameter<string> BBG_Year      := '2020';
+	parameter<string> BBG_Year      := '2012';
 }

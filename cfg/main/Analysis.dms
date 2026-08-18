@@ -312,6 +312,22 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			attribute<float64>   area_ha         := float64(BebouwdGebied/area);
 		}
 
+		// QA/diagnose-exports: laten zien via welk mechanisme water/infra bij het bebouwd gebied
+		// komt — stap 4 (afgesneden infra/water binnen de 160m-closing) dan wel stap 5 (gevulde
+		// ingesloten enclaves < 25 ha). Nuttig om o.a. het gedrag rond het IJ te beoordelen.
+		unit<uint32> Export_QA_Infra_binnen_closing := Stap4/Infra_binnen_closing
+		,	StorageName = "='%LocalDataDir%/BegrenzingBebouwdGebied/QA_InfraBinnenClosing_'+BBG_jaar+'_'+ModelParameters/StudyAreaName+'.gpkg'"
+		,	StorageType = "gdalwrite.vect"
+		{
+			attribute<rdc_meter> geometry (poly) := Stap4/Infra_binnen_closing/geometry;
+		}
+		unit<uint32> Export_QA_KleineEnclaves := Stap5/KleineEnclaves
+		,	StorageName = "='%LocalDataDir%/BegrenzingBebouwdGebied/QA_KleineEnclaves_'+BBG_jaar+'_'+ModelParameters/StudyAreaName+'.gpkg'"
+		,	StorageType = "gdalwrite.vect"
+		{
+			attribute<rdc_meter> geometry (poly) := Stap5/KleineEnclaves/geometry;
+		}
+
 		unit<uint32> Read_Result
 		:	StorageName = "='%LocalDataDir%/BegrenzingBebouwdGebied/BG'+BBG_jaar+'_'+ModelParameters/StudyAreaName+'.gpkg'"
 		,	StorageType = "gdal.vect"
