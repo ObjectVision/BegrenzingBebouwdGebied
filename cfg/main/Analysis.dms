@@ -29,6 +29,7 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	parameter<ha>      MinOppervlakBuitengebied   := 25[ha], Descr = "Rapport voetnoot 2: buitengebied telt pas mee vanaf 25 ha; kleinere ingesloten gebieden worden bebouwd gebied";
 	parameter<ha>      MinOppervlakBebouwd        := 5[ha],  Descr = "Rapport voetnoot 4: ondergrens bebouwd gebied; kleinere kernen worden buitengebied (AML stap 5)";
 	parameter<float32> MinVerhardingsgraad        := 0.3f,   Descr = "Rapport voetnoot 3: niet-omsloten secundair gebied met > 30% verharding wordt bebouwd gebied";
+	parameter<m>       MaxWaterbreedte_Stap4      := 64[m],  Descr = "Bewuste afwijking van de AML: water breder dan deze drempel wordt in stap 4 nooit aan het bebouwd gebied toegevoegd (grachten/binnenhavens wel, IJ/rivieren/brede kanalen niet). Zeer groot zetten herstelt exact het AML-gedrag";
 	parameter<uint8>   nr_bufferhoeken            := 8b,     Descr = "Aantal punten per cirkel bij geos_buffer; meer punten = rondere buffers maar trager. Bij een closing (+d/-d) middelt de vormfout grotendeels uit";
 
 	unit<uint32> BBG := /SourceData/BBG/StudyArea;
@@ -214,9 +215,39 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 
 		container Closing_KandidaatBebouwd := Closing_T(KandidaatBebouwd, KandidaatBebouwd/geometry, InfraClosingAfstand);
 
+		// -----------------------------------------------------------------------------------------
+		// Bewuste afwijking van de AML: breed water niet toevoegen.
+		// De AML kent in stap 4 geen uitzondering voor breed water, waardoor 160m-oeverstroken van
+		// bijv. het IJ bebouwd gebied worden, met per peiljaar verspringende kniplijnen als gevolg
+		// (in BG2000 ~300 ha IJ-water). Figuur 7 van het rapport toont het IJ juist als open
+		// corridor. Daarom wordt hier het 'brede' deel van het secundair-B-water bepaald met een
+		// morfologische opening (eroderen met de halve drempelbreedte, terugdilateren): wat de
+		// erosie overleeft is breder dan MaxWaterbreedte_Stap4 en wordt uitgesloten. Grachten en
+		// binnenhavens (smaller dan de drempel) blijven conform rapport §3.2 wel meedoen.
+		// -----------------------------------------------------------------------------------------
+		// water binnen secundair B = de klassen die ook in de omsloten-analyse als buitengebied
+		// tellen (71/72/73/78); spoor- en hoofdwegen vallen hierbuiten
+		unit<uint32> Water_SecundairB := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/Secundair_B && CBSKlasse/IsBuitengebied_OmslotenAnalyse[Stap0/CBSKlasse_rel])
+		{
+			attribute<rdc_meter> geometry (poly) := Stap0/geometry[org_rel];
+		}
+		// dissolve zodat de breedte over componentgrenzen heen wordt gemeten
+		unit<uint32> Water_aaneengesloten := geos_split_union_polygon(Water_SecundairB/geometry)
+		{
+			attribute<rdc_meter> kern       (poly) := geos_buffer_multi_polygon(geometry, -0.5d * MaxWaterbreedte_Stap4[float64], nr_bufferhoeken);
+			// terugdilateren met 1 m extra marge zodat er geen haardunne randslivers van 'smal'
+			// water langs het brede water overblijven
+			attribute<rdc_meter> breed_deel (poly) := geos_buffer_multi_polygon(kern, 0.5d * MaxWaterbreedte_Stap4[float64] + 1d, nr_bufferhoeken);
+		}
+		parameter<rdc_meter> BreedWater_unie (poly) := geos_union_polygon(Water_aaneengesloten/breed_deel);
+
 		// de doorsnede knipt de infrastructuurvlakken op de rand van de closing af
 		// (AML: UNION bebbuf4 bbg5, daarna selectie WITHIN + secb = 1)
-		unit<uint32> Infra_binnen_closing := geos_overlay_polygon(Stap1/SecundairBebouwdGebied_B/geometry, Closing_KandidaatBebouwd/geometry);
+		unit<uint32> Infra_binnen_closing := geos_overlay_polygon(Stap1/SecundairBebouwdGebied_B/geometry, Closing_KandidaatBebouwd/geometry)
+		{
+			// wegen/spoor overlappen nooit met water, dus de aftrek raakt alleen waterdelen
+			attribute<rdc_meter> geometry_zonder_breedwater (poly) := geometry - BreedWater_unie;
+		}
 	}
 
 	// ============================================================================================
@@ -231,7 +262,7 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	{
 		unit<uint32> Bebouwd_ruw := union_unit(Stap4/KandidaatBebouwd, Stap4/Infra_binnen_closing)
 		{
-			attribute<rdc_meter> geometry (poly) := union_data(., Stap4/KandidaatBebouwd/geometry, Stap4/Infra_binnen_closing/geometry);
+			attribute<rdc_meter> geometry (poly) := union_data(., Stap4/KandidaatBebouwd/geometry, Stap4/Infra_binnen_closing/geometry_zonder_breedwater);
 		}
 		unit<uint32> Bebouwd_aaneengesloten := geos_split_union_polygon(Bebouwd_ruw/geometry)
 		{
