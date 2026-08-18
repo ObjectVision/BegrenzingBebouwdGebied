@@ -101,6 +101,22 @@ container BBG
 																|| id(.) == V/Noordzee
 																|| id(.) == V/buitenland;
 		
+		// Voor de omsloten-analyse in Analysis/Stap1 telt binnenwater mee als buitengebied:
+		// infrastructuur sluit secundair gebied alleen af van het buitengebied als het geen
+		// water/waterweg is (rapport §2.2.2). De AML doet dit in de selectie 'buiten1':
+		// "prim <> 1 AND seca <> 1 AND secb <> 1 OR bbg = 78 OR bbg = 71 OR bbg = 72 OR bbg = 73".
+		// Alleen spoorwegen (10) en hoofdwegen (11) uit Secundair_B werken dus afsluitend.
+		// NB codering 0: het mutatiebestand codeert 'buitenland' als 0 (tabel 1 voert dit als
+		// klasse 90); invert(EK2010) pakt bij de dubbele 0-rij de laatste, dus code 0 -> buitenland
+		// -> buitengebied, conform tabel 1. Dat wijkt bewust af van de AML, die code 0 (daar de
+		// nodata-code) juist uitsloot; eventuele niet-gekarteerde 0-vlakken binnen NL tellen hier
+		// dus ook als buitengebied.
+		attribute<bool>            IsBuitengebied_OmslotenAnalyse := IsBuitengebied
+																|| id(.) == V/afgesloten_zeearm
+																|| id(.) == V/Rijn_en_Maas
+																|| id(.) == V/Randmeer
+																|| id(.) == V/overig_binnenwater;
+
 		attribute<Hoofdklassen> Hoofdklassen_rel := switch(
 														case(IsPrimairBebouwdGebied, Hoofdklassen/v/Primair)
 														,case(IsSecundairBebouwdGebied_A, Hoofdklassen/v/Secundair_A)

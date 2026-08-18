@@ -52,6 +52,11 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 		// unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2022, BBG_Reeks_1996_2022/IsStudyArea);
 	}
 	
+	// Copernicus HRL Imperviousness Density 2018 (0..100 = %, 254 = unclassifiable, 255 = outside
+	// area; geen nodata gedeclareerd in de tif). NB: de tif heeft celgrootte 10,2046 m (gewarpt uit
+	// het LAEA-grid) en wijkt dus af van het exacte 10 m rdc_10m-grid — GeoDMS meldt dit als
+	// 'Factor difference'-warning bij het lezen. Vervangen door een correct naar het 10 m RD-grid
+	// gewarpte IMD 2012: zie issue #1.
 	attribute<uint16> Verharding (rdc_10m)
 	: StorageName = "%SourceDataDir%/Overig/imperviousness_2018_010m_NL_rdc.tif"
 	,	StorageReadOnly = "True"

@@ -1,206 +1,313 @@
 container Analysis : using = "units;classifications;geography;classifications/bbg"
 {
-	parameter<m> Stap1_samengestelde_buffer_size := 16[m];
-	parameter<m> Stap1_small_buffer_size         := 5[m];
-	parameter<string> BBG_jaar := '2012';
-	
+	// =============================================================================================
+	// Afleiding Begrenzing Bebouwd Gebied volgens Odijk, van Bleek & Louwerse (2004),
+	// 'Begrenzing Bebouwd Gebied 2000' (VROM/DGR) — pdf in de repo-root.
+	//
+	// Het AML-script in bijlage 2 (bg1_bbg.aml) is hier als referentie-implementatie gevolgd: dat
+	// script heeft BG2000 daadwerkelijk geproduceerd. Waar de rapporttekst en de AML van elkaar
+	// afwijken is de AML aangehouden; zulke punten staan bij de betreffende stap toegelicht.
+	// De opdeling in kaartbladen (AML stap 0/6) was een ArcInfo-beperking uit 2004 en is niet
+	// overgenomen; ModelParameters/StudyAreaName begrenst hier het rekengebied.
+	//
+	// NB: de StudyArea-selectie neemt BBG-vlakken die het studiegebied raken mee met hun volledige
+	// geometrie, zonder eindclip. De AML werkte met kaartbladen + 1000 m buffer en knipte terug;
+	// hier zijn resultaten binnen enkele km van de StudyArea-rand daardoor indicatief (buitengebied-
+	// connectiviteit en 25 ha-toets worden op de selectierand afgekapt). Landsdekkend speelt dit
+	// alleen op de landsgrens.
+	// =============================================================================================
+
+	parameter<string> BBG_jaar := '2012', Descr = "Peiljaar; bepaalt welke CBSKlasse_rel_<jaar> uit het BBG-mutatiebestand wordt gebruikt";
+
+	// ---- parameters van de methodiek; herkomst per parameter in Descr --------------------------
+	parameter<m>       SamengesteldeBufferAfstand := 16[m],  Descr = "Rapport §2.2.2/voetnoot 1: samengestelde buffer van 16 m; 2x16 m operationaliseert de 32 m-grens (weg van 2x2 banen) waarboven infrastructuur afsluit";
+	parameter<m>       AangrenzingsAfstand        := 32[m],  Descr = "AML stap 1 (REGIONBUFFER 32 om groot buitengebied): secundair gebied binnen 32 m van groot buitengebied geldt als daarmee verbonden";
+	parameter<m>       InfraClosingAfstand        := 160[m], Descr = "AML stap 4 (REGIONBUFFER +160/-160): samengestelde buffer waarmee infrastructuur wordt afgesneden op de rand van het bebouwd gebied";
+	parameter<ha>      MinOppervlakBuitengebied   := 25[ha], Descr = "Rapport voetnoot 2: buitengebied telt pas mee vanaf 25 ha; kleinere ingesloten gebieden worden bebouwd gebied";
+	parameter<ha>      MinOppervlakBebouwd        := 5[ha],  Descr = "Rapport voetnoot 4: ondergrens bebouwd gebied; kleinere kernen worden buitengebied (AML stap 5)";
+	parameter<float32> MinVerhardingsgraad        := 0.3f,   Descr = "Rapport voetnoot 3: niet-omsloten secundair gebied met > 30% verharding wordt bebouwd gebied";
+	parameter<uint8>   nr_bufferhoeken            := 8b,     Descr = "Aantal punten per cirkel bij geos_buffer; meer punten = rondere buffers maar trager. Bij een closing (+d/-d) middelt de vormfout grotendeels uit";
+
 	unit<uint32> BBG := /SourceData/BBG/StudyArea;
-	
-	unit<uint32> Stap0 := ='geos_split_union_polygon(BBG/geometry, gg_src/Hoofdklassen_rel[BBG/CBSKlasse_rel_'+BBG_jaar+'])'
+
+	// ============================================================================================
+	// Stap 0: voorbereidingsfase (rapport §2.2.1)
+	// Dissolve per CBS-detailklasse, niet per hoofdklasse: de AML werkt per aaneengesloten vlak van
+	// dezelfde detailklasse (POLYREGION 'subclass') en zowel de omsloten-analyse (stap 1) als de
+	// verhardingsgraad (stap 2) horen per zo'n vlak bepaald te worden. Aangrenzende vlakken van
+	// verschillende secundaire klassen (bijv. park naast sportterrein) blijven zo aparte eenheden.
+	// ============================================================================================
+	unit<uint32> Stap0 := ='geos_split_union_polygon(BBG/geometry, BBG/CBSKlasse_rel_'+BBG_jaar+')'
 	{
-		// attribute<rdc_meter>          geometry_rd   (poly) := geometry;
-		attribute<Hoofdklassen> Hoofdklassen_rel     := part_rel;
+		attribute<gg_src>       CBSKlasse_rel        := part_rel;
+		attribute<Hoofdklassen> Hoofdklassen_rel     := gg_src/Hoofdklassen_rel[part_rel];
 		attribute<.>            per_10m    (rdc_10m) := poly2grid(geometry, rdc_10m);
-		attribute<float32>      Avg_verharding       := mean(float32(SourceData/Verharding), per_10m);
 	}
 
-	container Stap1
+	// Samengestelde buffer (rapport figuur 5; AML: REGIONBUFFER +afstand / DISSOLVE / REGIONBUFFER
+	// -afstand) = morfologische closing. Eerst verruimen zodat vlakken die minder dan 2x afstand uit
+	// elkaar liggen aan elkaar groeien, daarna weer inkrimpen: langs vrije randen keert de contour
+	// terug naar de oorspronkelijke grens en blijven alleen de dichtgegroeide tussenruimtes gevuld.
+	// (Alleen verruimen zou al het buitengebied langs elke rand 16 m eroderen en zo o.a. het
+	// 25 ha-criterium verstoren.)
+	Template Closing_T
 	{
-		unit<uint32> PrimairBebouwdGebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/primair)
-		{
-			attribute<rdc_meter> geometry               (poly) := Stap0/geometry[org_rel];
-			
-			// Rond het primair bebouwd gebied (bepaald in stap 0) wordt een zogenaamde “samengestelde buffer” gemaakt. Een samengestelde buffer zorgt er voor dat primair gebied dat slechts door een smalle strook buitengebied
-			// van elkaar wordt gescheiden aan elkaar groeit. De bufferafstand is vastgesteld op 16 meter;
-			attribute<rdc_meter> samengestelde_buffer_src                                   (poly) := geos_buffer_multi_polygon(geometry, Stap1_samengestelde_buffer_size[float64], 4b); 
-			unit<uint32>         dissolved_samengestelde_buffer                                    := geos_split_union_polygon(samengestelde_buffer_src);
-			attribute<rdc_meter> samengestelde_buffer       (poly, dissolved_samengestelde_buffer) := dissolved_samengestelde_buffer/geometry;
-			attribute<rdc_meter> samengestelde_buffer_outer (poly, dissolved_samengestelde_buffer) := outer_multi_polygon(dissolved_samengestelde_buffer/geometry);
-		}
-		
-		unit<uint32> SecundairBebouwdGebied_A := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/secundair_A)
-		{
-			attribute<rdc_meter> geometry                 (poly) := Stap0/geometry[org_rel];
-			attribute<rdc_meter> samengestelde_buffer     (poly) := geos_buffer_multi_polygon(geometry, Stap1_samengestelde_buffer_size[float64], 4b); 
-			
-			//stap 1: identificatie omsloten door primair methode: buffer een parkje, dan dyna_point, dan kijk of alle punten in de bebouwdgebied poly liggen. If yes, dan is het volledig omsloten.
-			attribute<rdc_meter> buffer               (poly) := geos_buffer_multi_polygon(geometry, Stap1_small_buffer_size[float64], 4b); 
-			unit<uint32>   arc2segments                := arc2segm(buffer)
-			{
-				attribute<SecundairBebouwdGebied_A> SBGA_rel := sequence_rel;
-			}
-			unit<uint32>   dynapoints                  := dyna_point_with_ends(arc2segments/point, arc2segments/nextpoint, 5d), DialogData = "point", DialogType = "map"
-			{
-				attribute<SecundairBebouwdGebied_A> SBGA_rel                   := arc2segments/SBGA_rel[sequence_rel];
-				attribute<bool>                     IsPointInPrimair_w_SABG    := IsDefined(point_in_polygon(point, Primair_with_SA_x_BG/geometry));
-				attribute<bool>                     IsPointInGrootBuitengebied := IsDefined(point_in_polygon(point, Groot_Buitengebied/geometry));
-			}
-			
-			attribute<bool> IsOmslotenSecundair_doorPrimair_w_SABG  := all(dynapoints/IsPointInPrimair_w_SABG, dynapoints/SBGA_rel);
-			unit<uint32>    OmslotenSecundair_doorPrimair_w_SABG    := select_with_org_rel(IsOmslotenSecundair_doorPrimair_w_SABG)
-			{
-				attribute<rdc_meter> geometry             (poly) := ../geometry[org_rel];
-			}
-			attribute<bool> IsAangrenzendSecundair_metGrootBG  := any(dynapoints/IsPointInGrootBuitengebied, dynapoints/SBGA_rel);
-			unit<uint32>    AangrenzendSecundair_metGrootBG    := select_with_org_rel(IsAangrenzendSecundair_metGrootBG)
-			{
-				attribute<rdc_meter> geometry             (poly) := ../geometry[org_rel];
-			}
-			
-			//stap 1: identificatie secundair gebied dat door infrastructuur wordt afgesloten van het buitengebied als omsloten
-			unit<uint32> Secundair_A_x_Buitengebied := geos_overlay_polygon(SecundairBebouwdGebied_A/samengestelde_buffer, Buitengebied/geometry);
-			unit<uint32> Primair_with_SA_x_BG       := union_unit(PrimairBebouwdGebied, Secundair_A_x_Buitengebied)
-			{
-				attribute<rdc_meter> geometry (poly) := union_data(., PrimairBebouwdGebied/samengestelde_buffer_src, Secundair_A_x_Buitengebied/geometry);
- 			}
-			
-			
-			// Al het buitengebied dat buiten het primair gebied ligt (buiten de samengestelde buffer) en groter is dan 25 ha wordt geselecteerd. 
-			// Vanuit deze selectie wordt al het secundair gebied geselecteerd.
-			// Het resultaat is dus het secundair gebied verbonden aan het buitengebied groter dan 25 ha. 
-			// Indien men het overige secundair gebied selecteert geeft dat als resultaat het ingesloten (omsloten) secundair gebied.
-			unit<uint32> Groot_Buitengebied := Buitengebied/Buitengebied_zonderPrimBuffer/Groot_Buitengebied;
-		}
-		
-		unit<uint32> SecundairBebouwdGebied_B := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/secundair_B)
-		{
-			attribute<rdc_meter> geometry                 (poly) := Stap0/geometry[org_rel];
-		}
-		// stap 1: identifcatie secundair afgesloten van buitengebied door infra (wanneer deze infra breder is dan 32 meter en niet water/waterwegen)
-			//De samengestelde buffer van het primaire gebied wordt geconfronteerd met de laag met het buitengebied zodat buitengebiedpolygonen worden doorsneden. Zo ontstaan er twee soorten buitengebied: smalle stroken 
-			// buitengebied liggend tussen primair gebied en buitengebied buiten het primair gebied. Bovendien moet buitengebied aan de voorwaarde voldoen dat het minimaal 25 ha groot is. 
-		
-		unit<uint32> Buitengebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/buitengebied)
-		{
-			attribute<rdc_meter>    geometry                      (poly) := Stap0/geometry[org_rel];
-			unit<uint32>      dissolved                            := geos_split_union_polygon(geometry);
-			attribute<rdc_meter>    geometry_dissolved (poly, dissolved) := dissolved/geometry;
-			
-			// Buitengebied binnen de bebouwde kern met een kleiner oppervlak wordt tot bebouwd gebied gerekend;
-			attribute<ha>     area                     (dissolved) := area(geometry_dissolved, m2)[ha];
-			attribute<bool>   IsKleinerDan25ha         (dissolved) := area < 25[ha];
-			
-			unit<uint32>    KleinerDan25ha := select_with_org_rel(IsKleinerDan25ha)
-			{
-				attribute<rdc_meter> geometry             (poly) := ../geometry_dissolved[org_rel];
-				attribute<rdc_meter> buffer               (poly) := geos_buffer_multi_polygon(geometry, Stap1_small_buffer_size[float64], 4b); 
-				unit<uint32>   arc2segments                := arc2segm(buffer)
-				{
-					attribute<KleinerDan25ha> KleinerDan25ha_rel  := sequence_rel;
-					attribute<dissolved>      BG_rel              := KleinerDan25ha/org_rel[sequence_rel];
-				}
-				unit<uint32>   dynapoints                  := dyna_point_with_ends(arc2segments/point, arc2segments/nextpoint, 5d), DialogData = "point", DialogType = "map"
-				{
-					attribute<KleinerDan25ha> KleinerDan25ha_rel       := arc2segments/KleinerDan25ha_rel[sequence_rel];
-					attribute<dissolved>      BG_rel                   := arc2segments/BG_rel[sequence_rel];
-					attribute<bool>           IsPointInPrimairBebouwd  := IsDefined(point_in_polygon(point, PrimairBebouwdGebied/samengestelde_buffer_outer));
-				}
-				attribute<bool> IsOmslotenKleinBG_doorPrimair  := all(KleinerDan25ha/dynapoints/IsPointInPrimairBebouwd, KleinerDan25ha/dynapoints/KleinerDan25ha_rel);
-			}
-			
-			attribute<bool> IsOmslotenKleinBG_doorPrimair (dissolved) := KleinerDan25ha/IsOmslotenKleinBG_doorPrimair[invert(KleinerDan25ha/org_rel)];
-			unit<uint32>    OmslotenKleinBG_doorPrimair               := select_with_org_rel(IsOmslotenKleinBG_doorPrimair)
-			{
-				attribute<rdc_meter> geometry             (poly) := ../geometry_dissolved[org_rel];
-			}
-			
-			
-			
-			// voor selectie secundair gebied aangrenzen aan klein buitengebied.
-			unit<uint32> PrimairBuffer_x_Buitengebied := geos_overlay_polygon(PrimairBebouwdGebied/samengestelde_buffer_src, Buitengebied/geometry)
-			{
-				parameter<rdc_meter> union (poly) := geos_union_polygon(geometry);
-			}
-			attribute<rdc_meter> WithoutPrimairBuffer (poly) := (geometry - PrimairBuffer_x_Buitengebied/union);
-			unit<uint32> Buitengebied_zonderPrimBuffer := geos_split_union_polygon(Buitengebied/WithoutPrimairBuffer)
-			{
-				attribute<ha>   area            := area(geometry, m2)[ha];
-				attribute<bool> IsGroterDan25ha := area >= 25[ha];
-				
-				unit<uint32> Groot_Buitengebied := select_with_org_rel(IsGroterDan25ha)
-				{
-					attribute<rdc_meter> geometry             (poly) := ../geometry[org_rel];
-				}
-			}
-		}
-		
-		
-			
-		container Results
-		{
-			attribute<rdc_meter> Primair_basis (poly, PrimairBebouwdGebied) := PrimairBebouwdGebied/geometry; 
-			
-			unit<uint32>   Secundair_Omsloten := union_unit(SecundairBebouwdGebied_A/OmslotenSecundair_doorPrimair_w_SABG, SecundairBebouwdGebied_A/AangrenzendSecundair_metGrootBG)
-			{
-				attribute<rdc_meter> geometry (poly) := union_data(., SecundairBebouwdGebied_A/OmslotenSecundair_doorPrimair_w_SABG/geometry, SecundairBebouwdGebied_A/AangrenzendSecundair_metGrootBG/geometry);
-			}
-			
-			attribute<rdc_meter> KleinBuitengebiedBinnenPrimair                            (poly, Buitengebied/OmslotenKleinBG_doorPrimair) := Buitengebied/OmslotenKleinBG_doorPrimair/geometry;
-			
-			unit<uint32> BebouwdGebied := union_unit(PrimairBebouwdGebied, Secundair_Omsloten)
-			{
-				attribute<rdc_meter> geometry (poly) := union_data(., PrimairBebouwdGebied/geometry, Secundair_Omsloten/geometry);
-				unit<uint32>   Dissolve        := geos_split_union_polygon(geometry);
-			}
-			
-			// fpolygon( ipolygon(INPUT) * ipolygon(CLIP_FEATURE))
-			
-			attribute<rdc_meter> Secundair_NietOmsloten (poly, SecundairBebouwdGebied_A) := SecundairBebouwdGebied_A/geometry - geos_union_polygon(Secundair_Omsloten/geometry);
-			unit<uint32>      Secundair_NietOmsloten_Dissolved := geos_split_union_polygon(Secundair_NietOmsloten);
-			
-			unit<uint32> OnbebouwdGebied := union_unit(Buitengebied/Dissolved, Secundair_NietOmsloten_Dissolved) 
-			{
-				attribute<rdc_meter> geometry (poly) := union_data(., Buitengebied/geometry_dissolved, Secundair_NietOmsloten_Dissolved/geometry);
-			}
-			
-			unit<uint32> Result := union_unit(BebouwdGebied, OnbebouwdGebied, SecundairBebouwdGebied_B) 
-			{
-				attribute<rdc_meter>                    geometry            (poly) := union_data(., BebouwdGebied/geometry, OnbebouwdGebied/geometry, SecundairBebouwdGebied_B/geometry);
-				attribute<Bebouwd_Intermediate_K> Bebouwd_Intermediate_K_rel := union_data(., const(Bebouwd_Intermediate_K/V/Bebouwd, BebouwdGebied), const(Bebouwd_Intermediate_K/V/Onbebouwd, OnbebouwdGebied), const(Bebouwd_Intermediate_K/V/infrastructuur, SecundairBebouwdGebied_B));
-			}
-			
-			
-			container FindOverlap := FindOverlap_T(Result);
-			
-			Template FindOverlap_T
-			{
-				unit<uint32> src_poly;
-				///
-				
-				// the  polygon_connectivity results in the set of connected/overlapping polygons 
-				unit<uint32> overlap_vector := geos_polygon_connectivity(src_poly/geometry)
-				{
-					attribute<rdc_meter>     geometry_F1 (poly) := src_poly/geometry[F1];
-					attribute<rdc_meter>     geometry_F2 (poly) := src_poly/geometry[F2];
-			
-					attribute<rdc_meter>  intersect   (poly) := geometry_F1 * geometry_F2;
-					attribute<m2>      area               := area(intersect, m2);
-				}
+		unit<uint32>         src_domain;
+		attribute<rdc_meter> src_geometry (src_domain, poly);
+		parameter<m>         afstand;
+		///
+		attribute<rdc_meter> verruimd (src_domain, poly)     := geos_buffer_multi_polygon(src_geometry, afstand[float64], nr_bufferhoeken);
+		unit<uint32>         aaneengesloten                  := geos_split_union_polygon(verruimd);
+		attribute<rdc_meter> geometry (aaneengesloten, poly) := geos_buffer_multi_polygon(aaneengesloten/geometry, -1d * afstand[float64], nr_bufferhoeken);
+		parameter<rdc_meter> unie (poly)                     := geos_union_polygon(geometry);
+	}
 
-				unit<uint32> met_overlap_vector := select_with_org_rel(overlap_vector/area > 0[m2])
-				{
-					attribute<rdc_meter>     geometry    (poly) := overlap_vector/intersect[org_rel];
-					attribute<m2>            area               := overlap_vector/area[org_rel];
-				}
+	// ============================================================================================
+	// Stap 1: ingesloten secundair bebouwd gebied (rapport §2.2.2; AML 'STAP 1')
+	// Kern van de AML-logica: bepaal het 'groot buitengebied' (aaneengesloten buitengebied buiten
+	// de samengestelde buffer van het primair gebied, groter dan 25 ha). Secundair gebied dat daar
+	// NIET binnen 32 m van ligt is omsloten. Dat ene complement dekt alle drie de omsloten-gevallen
+	// uit het rapport tegelijk: (a) geheel door primair omsloten, (b) door brede (>32 m) niet-water-
+	// infrastructuur afgesloten, en (c) alleen grenzend aan klein (<25 ha) buitengebied.
+	// ============================================================================================
+	container Stap1 : Descr = "Stap 1: ingesloten secundair bebouwd gebied"
+	{
+		unit<uint32> PrimairBebouwdGebied := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/Primair)
+		{
+			attribute<rdc_meter> geometry (poly) := Stap0/geometry[org_rel];
+		}
+		unit<uint32> SecundairBebouwdGebied_A := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/Secundair_A)
+		{
+			attribute<rdc_meter> geometry (poly) := Stap0/geometry[org_rel];
+		}
+		unit<uint32> SecundairBebouwdGebied_B := select_with_org_rel(Stap0/Hoofdklassen_rel == Hoofdklassen/v/Secundair_B)
+		{
+			attribute<rdc_meter> geometry (poly) := Stap0/geometry[org_rel];
+		}
+
+		container SamengesteldeBuffer_Primair := Closing_T(PrimairBebouwdGebied, PrimairBebouwdGebied/geometry, SamengesteldeBufferAfstand);
+
+		// Buitengebied-laag voor de omsloten-analyse: hoofdklasse Buitengebied PLUS het binnenwater
+		// uit Secundair_B. Infrastructuur sluit secundair gebied alleen af als het geen water(weg) is
+		// (rapport §2.2.2); de AML regelt dat door water als buitengebied te laten meetellen
+		// (selectie 'buiten1': ... OR bbg = 78/71/72/73). Alleen spoor- en hoofdwegen werken dus
+		// afsluitend. Ditzelfde water kan in stap 4 alsnog bebouwd gebied worden (grachten in de kom).
+		unit<uint32> Buitengebied_bron := select_with_org_rel(gg_src/IsBuitengebied_OmslotenAnalyse[Stap0/CBSKlasse_rel])
+		{
+			attribute<rdc_meter> geometry (poly) := Stap0/geometry[org_rel];
+		}
+		// dissolve over de klassegrenzen heen (AML: DISSOLVE op vlag 'buiten1a'): aangrenzende
+		// buitengebied- en watervlakken vormen samen een aaneengesloten gebied voor het 25 ha-criterium
+		unit<uint32> Buitengebied_aaneengesloten := geos_split_union_polygon(Buitengebied_bron/geometry)
+		{
+			// doorsnijden met de samengestelde buffer (AML: UNION buiten3 pbuf4): het buitengebied
+			// wordt op de closing-rand geknipt en beide zijden worden APART gesplitst, zodat delen
+			// niet over de rand heen weer aan elkaar groeien. De AML-selectie ('buiten1a = 1 AND
+			// area GT 250000') kent geen binnen/buiten-conditie: ook een deel binnen de closing telt
+			// als groot buitengebied wanneer het > 25 ha is — denk aan een aaneengesloten
+			// grachtennetwerk (< 32 m breed, primair op beide oevers) dat samen > 25 ha beslaat.
+			attribute<rdc_meter> deel_buiten_closing (poly) := geometry - SamengesteldeBuffer_Primair/unie;
+			attribute<rdc_meter> deel_binnen_closing (poly) := geos_intersect(geometry, SamengesteldeBuffer_Primair/unie);
+		}
+		unit<uint32> Buitengebied_delen_buiten := geos_split_union_polygon(Buitengebied_aaneengesloten/deel_buiten_closing)
+		{
+			attribute<ha>   area    := area(geometry, m2)[ha];
+			attribute<bool> IsGroot := area > MinOppervlakBuitengebied; // strikt groter, conform AML ('area GT 250000')
+			unit<uint32> Groot := select_with_org_rel(IsGroot)
+			{
+				attribute<rdc_meter> geometry (poly) := ../geometry[org_rel];
 			}
 		}
+		unit<uint32> Buitengebied_delen_binnen := geos_split_union_polygon(Buitengebied_aaneengesloten/deel_binnen_closing)
+		{
+			attribute<ha>   area    := area(geometry, m2)[ha];
+			attribute<bool> IsGroot := area > MinOppervlakBuitengebied;
+			unit<uint32> Groot := select_with_org_rel(IsGroot)
+			{
+				attribute<rdc_meter> geometry (poly) := ../geometry[org_rel];
+			}
+		}
+		unit<uint32> Groot_Buitengebied := union_unit(Buitengebied_delen_buiten/Groot, Buitengebied_delen_binnen/Groot)
+		{
+			attribute<rdc_meter> geometry  (poly) := union_data(., Buitengebied_delen_buiten/Groot/geometry, Buitengebied_delen_binnen/Groot/geometry);
+			// 32 m-buffer (AML: REGIONBUFFER 32): secundair gebied dat deze buffer raakt is verbonden
+			// met het buitengebied; infrastructuur smaller dan 32 m sluit dus niet af.
+			// 16 punten per cirkel i.p.v. nr_bufferhoeken: een 8-hoekige buffer blijft op de
+			// segmentmiddens tot ~2,4 m binnen de ware 32 m; met 16 punten is dat < 0,7 m
+			// (de AML-tolerantie was 2 m)
+			attribute<rdc_meter> gebufferd (poly) := geos_buffer_multi_polygon(geometry, AangrenzingsAfstand[float64], 16b);
+		}
+
+		unit<uint32> SecundairA_x_GrootBuitengebied := geos_overlay_polygon(SecundairBebouwdGebied_A/geometry, Groot_Buitengebied/gebufferd);
+
+		attribute<uint32> NrRakingenGrootBuitengebied     (SecundairBebouwdGebied_A) := pcount(SecundairA_x_GrootBuitengebied/first_rel);
+		attribute<bool>   IsVerbondenMetGrootBuitengebied (SecundairBebouwdGebied_A) := NrRakingenGrootBuitengebied > uint32(0);
+		// omsloten = het complement van verbonden (AML: 'omsloten = 1' waar 'sec_bg <> 1 AND seca = 1');
+		// rapport §2.2.2: "Indien men het overige secundair gebied selecteert geeft dat als resultaat
+		// het ingesloten (omsloten) secundair gebied."
+		attribute<bool>   IsOmsloten                      (SecundairBebouwdGebied_A) := not(IsVerbondenMetGrootBuitengebied);
+
+		unit<uint32> Omsloten_SecundairA := select_with_org_rel(IsOmsloten)
+		{
+			attribute<rdc_meter> geometry (poly) := SecundairBebouwdGebied_A/geometry[org_rel];
+		}
 	}
-	container Stap2
+
+	// ============================================================================================
+	// Stap 2: rol van de verhardingsgraad (rapport §2.2.3; AML 'STAP 2' + selectie onder 'STAP 3')
+	// Niet-omsloten secundair gebied met meer dan 30% verharding hoort alsnog bij het bebouwd
+	// gebied (AML: RESEL seca = 1 AND omsloten <> 1 AND verh_graad > 0.3).
+	// De oorspronkelijke binaire verhardingskaart (wel/niet verhard per vlak) bestaat niet meer;
+	// als proxy dient de Copernicus Imperviousness Density: gemiddeld verhardingspercentage per
+	// vlak. NB: nu nog de 2018-laag; vervangen door IMD 2012 — zie issue #1.
+	// ============================================================================================
+	container Stap2 : Descr = "Stap 2: verhardingsgraad voor niet-omsloten secundair gebied"
 	{
-		unit<uint32> Stap1 := Analysis/Stap1/Results/Result;
-		attribute<uint16> Verharding (rdc_10m) := SourceData/Verharding;
-		
-		
-		
+		// Copernicus IMD-codering: 0..100 = verhardingspercentage, 254 = unclassifiable, 255 =
+		// outside area. De tif declareert geen nodata-waarde, dus hier zelf filteren — anders telt
+		// de Noordzee (waarde 255) mee in het gemiddelde (issue #1).
+		attribute<bool>    HeeftData      (rdc_10m) := SourceData/Verharding <= uint16(100);
+		attribute<float32> AandeelVerhard (rdc_10m) := iif(HeeftData, float32(SourceData/Verharding) / 100f, 0f);
+
+		attribute<float32> SomAandeelVerhard (Stap0) := sum(AandeelVerhard, Stap0/per_10m);
+		// Noemer = alle cellen van het vlak, dus nodata telt als onverhard — conform de AML, die het
+		// verharde oppervlak deelt door de totale vlakoppervlakte ('verh_graad = sum-area_new /
+		// oppervlak_sec'). Vlakken zonder eigen 10 m-cel (zeer smalle vlakken) krijgen null (0/0) en
+		// tellen daardoor niet als 'voldoende verhard' — dezelfde beperking gold destijds voor de
+		// 25 m-verhardingskaart.
+		attribute<float32> NrCellen          (Stap0) := float32(pcount(Stap0/per_10m));
+		attribute<float32> Verhardingsgraad  (Stap0) := SomAandeelVerhard / NrCellen, Descr = "aandeel verhard oppervlak (0..1) per aaneengesloten vlak van dezelfde CBS-klasse";
+
+		attribute<bool> IsVoldoendeVerhard (Stap1/SecundairBebouwdGebied_A) := Verhardingsgraad[Stap1/SecundairBebouwdGebied_A/org_rel] > MinVerhardingsgraad;
+
+		unit<uint32> Verhard_NietOmsloten_SecundairA := select_with_org_rel(not(Stap1/IsOmsloten) && IsVoldoendeVerhard)
+		{
+			attribute<rdc_meter> geometry (poly) := Stap1/SecundairBebouwdGebied_A/geometry[org_rel];
+		}
 	}
+
+	// Stap 3 (rapport §2.2.4: clustering met 16 m-buffers t.b.v. de 5 ha-ondergrens) is bewust geen
+	// aparte bewerking: in de AML wordt de daar berekende clusteroppervlakte ('oppvlbuf') nergens in
+	// de eindselectie gebruikt. De 5 ha-toets (stap 5) werkt de facto op aaneengesloten gedissolvede
+	// bebouwd-vlakken, waarbij clustering ontstaat doordat stap 4 tussenliggende infrastructuur aan
+	// het bebouwd gebied toevoegt. Die feitelijke AML-werking is hier gevolgd.
+
+	// ============================================================================================
+	// Stap 4: afsnijding infrastructuur (rapport §2.2.5; AML 'STAP 4')
+	// Infrastructuurvlakken (Secundair_B) zijn in het BBG doorgaande vlakken; ze worden 'afgesneden'
+	// met een samengestelde buffer van 160 m om het kandidaat-bebouwd gebied: het deel binnen die
+	// contour hoort bij het bebouwd gebied, het deel erbuiten niet. Bewust inclusief water: zo komen
+	// ook grachten en kanalen binnen de kom bij het bebouwd gebied (rapport §3.2: 3,4% van BG2000
+	// is binnenwater).
+	// ============================================================================================
+	container Stap4 : Descr = "Stap 4: afsnijding infrastructuur"
+	{
+		// kandidaat-bebouwd na stap 2 (AML-item 'temp'/'bebouwd'): primair + omsloten secundair +
+		// voldoende verhard niet-omsloten secundair
+		unit<uint32> KandidaatBebouwd := union_unit(Stap1/PrimairBebouwdGebied, Stap1/Omsloten_SecundairA, Stap2/Verhard_NietOmsloten_SecundairA)
+		{
+			attribute<rdc_meter> geometry (poly) := union_data(., Stap1/PrimairBebouwdGebied/geometry, Stap1/Omsloten_SecundairA/geometry, Stap2/Verhard_NietOmsloten_SecundairA/geometry);
+		}
+
+		container Closing_KandidaatBebouwd := Closing_T(KandidaatBebouwd, KandidaatBebouwd/geometry, InfraClosingAfstand);
+
+		// de doorsnede knipt de infrastructuurvlakken op de rand van de closing af
+		// (AML: UNION bebbuf4 bbg5, daarna selectie WITHIN + secb = 1)
+		unit<uint32> Infra_binnen_closing := geos_overlay_polygon(Stap1/SecundairBebouwdGebied_B/geometry, Closing_KandidaatBebouwd/geometry);
+	}
+
+	// ============================================================================================
+	// Stap 5: ingesloten buitengebied en ondergrens (rapport §2.2.6; AML 'STAP 5')
+	// Volgorde conform AML: eerst ingesloten niet-bebouwd gebied kleiner dan 25 ha bij het bebouwd
+	// gebied voegen (bbg10), daarna kernen kleiner dan 5 ha laten vervallen (bbg11), en dissolven.
+	// Bekende beperking t.o.v. de ArcInfo-coverage-topologie: twee kernen die elkaar in precies één
+	// punt raken zijn voor GEOS losse componenten, zodat een daartussen ingesloten enclave geen 'gat'
+	// is en niet gevuld wordt; zeldzaam en lokaal.
+	// ============================================================================================
+	container Stap5 : Descr = "Stap 5: ingesloten buitengebied en ondergrens bebouwd gebied"
+	{
+		unit<uint32> Bebouwd_ruw := union_unit(Stap4/KandidaatBebouwd, Stap4/Infra_binnen_closing)
+		{
+			attribute<rdc_meter> geometry (poly) := union_data(., Stap4/KandidaatBebouwd/geometry, Stap4/Infra_binnen_closing/geometry);
+		}
+		unit<uint32> Bebouwd_aaneengesloten := geos_split_union_polygon(Bebouwd_ruw/geometry)
+		{
+			// 'ingesloten niet-bebouwd gebied' (AML: dissolved vlakken met bebouwd = 0, geheel door
+			// bebouwd gebied omringd) = de gaten in de aaneengesloten bebouwd-vlakken.
+			// Niet-ingesloten buitengebied grenst aan de buitenrand en is geen gat.
+			attribute<rdc_meter> zonder_gaten (poly) := outer_multi_polygon(geometry);
+			// de VOLLEDIGE bebouwd-unie aftrekken, niet alleen het eigen vlak: een losse bebouwde kern
+			// binnen een enclave telt anders mee in de enclave-oppervlakte (de AML toetst per
+			// gedissolvede niet-bebouwd-face, dus zonder zulke eilanden), en gaten van die eilanden
+			// zouden anders nooit gevuld worden
+			parameter<rdc_meter> unie (poly)        := geos_union_polygon(geometry);
+			attribute<rdc_meter> gaten        (poly) := zonder_gaten - unie;
+		}
+		unit<uint32> IngeslotenBuitengebied := geos_split_union_polygon(Bebouwd_aaneengesloten/gaten)
+		{
+			attribute<ha>   area    := area(geometry, m2)[ha];
+			attribute<bool> IsKlein := area < MinOppervlakBuitengebied; // strikt kleiner, conform AML ('area < 250000')
+		}
+		unit<uint32> KleineEnclaves := select_with_org_rel(IngeslotenBuitengebied/IsKlein)
+		{
+			attribute<rdc_meter> geometry (poly) := IngeslotenBuitengebied/geometry[org_rel];
+		}
+		unit<uint32> Bebouwd_gevuld := union_unit(Bebouwd_aaneengesloten, KleineEnclaves)
+		{
+			attribute<rdc_meter> geometry (poly) := union_data(., Bebouwd_aaneengesloten/geometry, KleineEnclaves/geometry);
+		}
+		unit<uint32> Bebouwd_kernen := geos_split_union_polygon(Bebouwd_gevuld/geometry)
+		{
+			attribute<ha>   area          := area(geometry, m2)[ha];
+			attribute<bool> IsGrootGenoeg := area >= MinOppervlakBebouwd; // AML: 'area < 50000 -> bebouwd = 0', dus precies 5 ha blijft bebouwd
+		}
+		unit<uint32> BebouwdGebied := select_with_org_rel(Bebouwd_kernen/IsGrootGenoeg)
+		{
+			attribute<rdc_meter> geometry (poly) := Bebouwd_kernen/geometry[org_rel];
+			attribute<ha>        area            := Bebouwd_kernen/area[org_rel];
+		}
+	}
+
+	// ============================================================================================
+	// Stap 6: eindresultaat (rapport §2.2.7)
+	// ============================================================================================
+	container Resultaat : Descr = "Begrenzing Bebouwd Gebied voor het gekozen BBG_jaar"
+	{
+		unit<uint32> BebouwdGebied := Stap5/BebouwdGebied
+		{
+			attribute<rdc_meter> geometry (poly)  := Stap5/BebouwdGebied/geometry;
+			attribute<ha>        area             := Stap5/BebouwdGebied/area;
+			parameter<ha>        totaal_oppervlak := sum(area), Descr = "ter validatie: landsdekkend was BG2000 368.010 ha (rapport tabel 2); voor een StudyArea-uitsnede alleen indicatief";
+		}
+
+		// QA: het eindresultaat hoort geen overlappende vlakken te bevatten
+		container FindOverlap
+		{
+			// polygon_connectivity levert de paren rakende/overlappende vlakken (first_rel, second_rel)
+			unit<uint32> overlap_vector := geos_polygon_connectivity(BebouwdGebied/geometry)
+			{
+				attribute<rdc_meter> geometry_F1 (poly) := BebouwdGebied/geometry[first_rel];
+				attribute<rdc_meter> geometry_F2 (poly) := BebouwdGebied/geometry[second_rel];
+				attribute<rdc_meter> intersect   (poly) := geos_intersect(geometry_F1, geometry_F2);
+				attribute<m2>        area               := area(intersect, m2);
+			}
+			// rakende paren (area = 0) zijn onschuldig; alleen echte overlap is een defect
+			unit<uint32> met_overlap_vector := select_with_org_rel(overlap_vector/area > 0[m2])
+			{
+				attribute<rdc_meter> geometry (poly) := overlap_vector/intersect[org_rel];
+				attribute<m2>        area            := overlap_vector/area[org_rel];
+			}
+		}
+
+		// Wegschrijven naar uitwisselingsformaat (rapport §2.2.7); ook nodig om met GeoDmsRun de
+		// hele keten daadwerkelijk te laten doorrekenen (zonder storage rekent die niets uit)
+		unit<uint32> Export_gpkg := BebouwdGebied
+		,	StorageName = "='%LocalDataDir%/BegrenzingBebouwdGebied/BG'+BBG_jaar+'_'+ModelParameters/StudyAreaName+'.gpkg'"
+		,	StorageType = "gdalwrite.vect"
+		{
+			attribute<rdc_meter> geometry (poly) := BebouwdGebied/geometry;
+			attribute<float64>   area_ha         := float64(BebouwdGebied/area);
+		}
+	}
+
 }
