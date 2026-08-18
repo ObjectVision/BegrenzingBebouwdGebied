@@ -102,18 +102,38 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 		}
 		// dissolve over de klassegrenzen heen (AML: DISSOLVE op vlag 'buiten1a'): aangrenzende
 		// buitengebied- en watervlakken vormen samen een aaneengesloten gebied voor het 25 ha-criterium
-		unit<uint32> Buitengebied_aaneengesloten := geos_split_union_polygon(Buitengebied_bron/geometry)
+		unit<uint32> Buitengebied_aaneengesloten := geos_split_union_polygon(Buitengebied_bron/geometry);
+
+		// Doorsnijden met de samengestelde buffer (AML: UNION buiten3 pbuf4): het buitengebied
+		// wordt op de closing-rand geknipt en beide zijden worden APART gesplitst, zodat delen
+		// niet over de rand heen weer aan elkaar groeien. De AML-selectie ('buiten1a = 1 AND
+		// area GT 250000') kent geen binnen/buiten-conditie: ook een deel binnen de closing telt
+		// als groot buitengebied wanneer het > 25 ha is — denk aan een aaneengesloten
+		// grachtennetwerk (< 32 m breed, primair op beide oevers) dat samen > 25 ha beslaat.
+		// Performance: elk vlak rekent alleen tegen zijn LOKAAL overlappende closing-stukken
+		// (geos_overlay + gepartitioneerde unie) in plaats van tegen een landsdekkende
+		// closing-unie — semantisch identiek, maar dat laatste bleek bij een nationale run
+		// de bottleneck (urenlange subtracties tegen één multipolygoon van miljoenen punten).
+		unit<uint32> BG_x_Closing := geos_overlay_polygon(Buitengebied_aaneengesloten/geometry, SamengesteldeBuffer_Primair/geometry);
+		attribute<rdc_meter> closing_lokaal   (Buitengebied_aaneengesloten, poly) := geos_union_polygon(BG_x_Closing/geometry, BG_x_Closing/first_rel);
+		attribute<uint32>    NrClosingStukken (Buitengebied_aaneengesloten)       := pcount(BG_x_Closing/first_rel);
+
+		// vlakken zonder closing-overlap blijven ongewijzigd buitengebied (en vermijden zo een
+		// aftrek tegen een null-geometrie)
+		unit<uint32> BG_met_closing := select_with_org_rel(NrClosingStukken > uint32(0))
 		{
-			// doorsnijden met de samengestelde buffer (AML: UNION buiten3 pbuf4): het buitengebied
-			// wordt op de closing-rand geknipt en beide zijden worden APART gesplitst, zodat delen
-			// niet over de rand heen weer aan elkaar groeien. De AML-selectie ('buiten1a = 1 AND
-			// area GT 250000') kent geen binnen/buiten-conditie: ook een deel binnen de closing telt
-			// als groot buitengebied wanneer het > 25 ha is — denk aan een aaneengesloten
-			// grachtennetwerk (< 32 m breed, primair op beide oevers) dat samen > 25 ha beslaat.
-			attribute<rdc_meter> deel_buiten_closing (poly) := geometry - SamengesteldeBuffer_Primair/unie;
-			attribute<rdc_meter> deel_binnen_closing (poly) := geos_intersect(geometry, SamengesteldeBuffer_Primair/unie);
+			attribute<rdc_meter> deel_buiten (poly) := Buitengebied_aaneengesloten/geometry[org_rel] - closing_lokaal[org_rel];
 		}
-		unit<uint32> Buitengebied_delen_buiten := geos_split_union_polygon(Buitengebied_aaneengesloten/deel_buiten_closing)
+		unit<uint32> BG_zonder_closing := select_with_org_rel(NrClosingStukken == uint32(0))
+		{
+			attribute<rdc_meter> geometry (poly) := Buitengebied_aaneengesloten/geometry[org_rel];
+		}
+		unit<uint32> Buiten_closing_bron := union_unit(BG_met_closing, BG_zonder_closing)
+		{
+			attribute<rdc_meter> geometry (poly) := union_data(., BG_met_closing/deel_buiten, BG_zonder_closing/geometry);
+		}
+
+		unit<uint32> Buitengebied_delen_buiten := geos_split_union_polygon(Buiten_closing_bron/geometry)
 		{
 			attribute<ha>   area    := area(geometry, m2)[ha];
 			attribute<bool> IsGroot := area > MinOppervlakBuitengebied; // strikt groter, conform AML ('area GT 250000')
@@ -122,7 +142,8 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 				attribute<rdc_meter> geometry (poly) := ../geometry[org_rel];
 			}
 		}
-		unit<uint32> Buitengebied_delen_binnen := geos_split_union_polygon(Buitengebied_aaneengesloten/deel_binnen_closing)
+		// de overlay-stukken zijn zelf precies het deel binnen de closing
+		unit<uint32> Buitengebied_delen_binnen := geos_split_union_polygon(BG_x_Closing/geometry)
 		{
 			attribute<ha>   area    := area(geometry, m2)[ha];
 			attribute<bool> IsGroot := area > MinOppervlakBuitengebied;
@@ -239,14 +260,30 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			// water langs het brede water overblijven
 			attribute<rdc_meter> breed_deel (poly) := geos_buffer_multi_polygon(kern, 0.5d * MaxWaterbreedte_Stap4[float64] + 1d, nr_bufferhoeken);
 		}
-		parameter<rdc_meter> BreedWater_unie (poly) := geos_union_polygon(Water_aaneengesloten/breed_deel);
 
 		// de doorsnede knipt de infrastructuurvlakken op de rand van de closing af
 		// (AML: UNION bebbuf4 bbg5, daarna selectie WITHIN + secb = 1)
-		unit<uint32> Infra_binnen_closing := geos_overlay_polygon(Stap1/SecundairBebouwdGebied_B/geometry, Closing_KandidaatBebouwd/geometry)
+		unit<uint32> Infra_binnen_closing := geos_overlay_polygon(Stap1/SecundairBebouwdGebied_B/geometry, Closing_KandidaatBebouwd/geometry);
+
+		// breed-water-aftrek, gepartitioneerd: elk stuk rekent alleen tegen het lokaal
+		// overlappende brede water i.p.v. tegen een landsdekkende breedwater-unie (zie de
+		// performance-toelichting bij stap 1). Wegen/spoor overlappen nooit met water, dus de
+		// aftrek raakt alleen waterdelen.
+		unit<uint32> Infra_x_BreedWater := geos_overlay_polygon(Infra_binnen_closing/geometry, Water_aaneengesloten/breed_deel);
+		attribute<rdc_meter> breedwater_lokaal    (Infra_binnen_closing, poly) := geos_union_polygon(Infra_x_BreedWater/geometry, Infra_x_BreedWater/first_rel);
+		attribute<uint32>    NrBreedWaterStukken  (Infra_binnen_closing)       := pcount(Infra_x_BreedWater/first_rel);
+
+		unit<uint32> Infra_met_breedwater := select_with_org_rel(NrBreedWaterStukken > uint32(0))
 		{
-			// wegen/spoor overlappen nooit met water, dus de aftrek raakt alleen waterdelen
-			attribute<rdc_meter> geometry_zonder_breedwater (poly) := geometry - BreedWater_unie;
+			attribute<rdc_meter> geometry_gefilterd (poly) := Infra_binnen_closing/geometry[org_rel] - breedwater_lokaal[org_rel];
+		}
+		unit<uint32> Infra_zonder_breedwater := select_with_org_rel(NrBreedWaterStukken == uint32(0))
+		{
+			attribute<rdc_meter> geometry (poly) := Infra_binnen_closing/geometry[org_rel];
+		}
+		unit<uint32> Infra_toevoeging := union_unit(Infra_met_breedwater, Infra_zonder_breedwater)
+		{
+			attribute<rdc_meter> geometry (poly) := union_data(., Infra_met_breedwater/geometry_gefilterd, Infra_zonder_breedwater/geometry);
 		}
 	}
 
@@ -260,9 +297,9 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	// ============================================================================================
 	container Stap5 : Descr = "Stap 5: ingesloten buitengebied en ondergrens bebouwd gebied"
 	{
-		unit<uint32> Bebouwd_ruw := union_unit(Stap4/KandidaatBebouwd, Stap4/Infra_binnen_closing)
+		unit<uint32> Bebouwd_ruw := union_unit(Stap4/KandidaatBebouwd, Stap4/Infra_toevoeging)
 		{
-			attribute<rdc_meter> geometry (poly) := union_data(., Stap4/KandidaatBebouwd/geometry, Stap4/Infra_binnen_closing/geometry_zonder_breedwater);
+			attribute<rdc_meter> geometry (poly) := union_data(., Stap4/KandidaatBebouwd/geometry, Stap4/Infra_toevoeging/geometry);
 		}
 		unit<uint32> Bebouwd_aaneengesloten := geos_split_union_polygon(Bebouwd_ruw/geometry)
 		{
@@ -270,14 +307,18 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			// bebouwd gebied omringd) = de gaten in de aaneengesloten bebouwd-vlakken.
 			// Niet-ingesloten buitengebied grenst aan de buitenrand en is geen gat.
 			attribute<rdc_meter> zonder_gaten (poly) := outer_multi_polygon(geometry);
-			// de VOLLEDIGE bebouwd-unie aftrekken, niet alleen het eigen vlak: een losse bebouwde kern
-			// binnen een enclave telt anders mee in de enclave-oppervlakte (de AML toetst per
-			// gedissolvede niet-bebouwd-face, dus zonder zulke eilanden), en gaten van die eilanden
-			// zouden anders nooit gevuld worden
-			parameter<rdc_meter> unie (poly)        := geos_union_polygon(geometry);
-			attribute<rdc_meter> gaten        (poly) := zonder_gaten - unie;
 		}
-		unit<uint32> IngeslotenBuitengebied := geos_split_union_polygon(Bebouwd_aaneengesloten/gaten)
+		// Alle bebouwde geometrie aftrekken, niet alleen het eigen vlak: een losse bebouwde kern
+		// binnen een enclave telt anders mee in de enclave-oppervlakte (de AML toetst per
+		// gedissolvede niet-bebouwd-face, dus zonder zulke eilanden), en gaten van die eilanden
+		// zouden anders nooit gevuld worden. Gepartitioneerd (elk vlak alleen tegen zijn lokaal
+		// overlappende kernen; elk vlak overlapt minimaal zichzelf, dus nooit null) i.p.v. tegen
+		// een landsdekkende bebouwd-unie — zie de performance-toelichting bij stap 1.
+		unit<uint32> Outer_x_Bebouwd := geos_overlay_polygon(Bebouwd_aaneengesloten/zonder_gaten, Bebouwd_aaneengesloten/geometry);
+		attribute<rdc_meter> bebouwd_lokaal (Bebouwd_aaneengesloten, poly) := geos_union_polygon(Outer_x_Bebouwd/geometry, Outer_x_Bebouwd/first_rel);
+		attribute<rdc_meter> gaten          (Bebouwd_aaneengesloten, poly) := Bebouwd_aaneengesloten/zonder_gaten - bebouwd_lokaal;
+
+		unit<uint32> IngeslotenBuitengebied := geos_split_union_polygon(gaten)
 		{
 			attribute<ha>   area    := area(geometry, m2)[ha];
 			attribute<bool> IsKlein := area < MinOppervlakBuitengebied; // strikt kleiner, conform AML ('area < 250000')
