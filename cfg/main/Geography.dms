@@ -1,10 +1,10 @@
 container Geography: Using = "Units"
 {
-	unit<fpoint> rdc_base   : DialogData = "ngr_layer", SpatialReference = "EPSG:28992";
-	unit<fpoint> rdc        := range(rdc_base, point_yx(StudyArea/ChosenArea/y_min, StudyArea/ChosenArea/x_min), point_yx(StudyArea/ChosenArea/y_max, StudyArea/ChosenArea/x_max));
-	unit<ipoint> rdc_mm     := gridset(rdc,  point_yx(0.001, 0.001), point_yx(0.0, 0.0), ipoint); 
+	unit<dpoint> rdc_meter_base   : DialogData = "ngr_layer", SpatialReference = "EPSG:28992";
+	unit<dpoint> rdc_meter        := range(rdc_meter_base, point_yx(StudyArea/ChosenArea/y_min, StudyArea/ChosenArea/x_min), point_yx(StudyArea/ChosenArea/y_max, StudyArea/ChosenArea/x_max));
+	unit<ipoint> rdc_mm           := gridset(rdc_meter,  point_yx(0.001, 0.001), point_yx(0.0, 0.0), ipoint); 
 	
-	unit<uint32> Gridsizes : nrofrows = 7
+	unit<uint32> Gridsizes : nrofrows = 6
 	{
 		attribute<string>  size_str : ['5', '10', '25', '100', '250', '500'];
 		attribute<m>       size     := size_str[m];
@@ -38,20 +38,20 @@ container Geography: Using = "Units"
 		
 		container ChosenArea := =ModelParameters/StudyAreaName;
 		
-		parameter<rdc> top_left     := point_xy(ChosenArea/x_min, ChosenArea/y_max, rdc); 
-		parameter<rdc> top_right    := point_xy(ChosenArea/x_max, ChosenArea/y_max, rdc);
-		parameter<rdc> bottom_left  := point_xy(ChosenArea/x_min, ChosenArea/y_min, rdc);
-		parameter<rdc> bottom_right := point_xy(ChosenArea/x_max, ChosenArea/y_min, rdc);
+		parameter<rdc_meter> top_left     := point_xy(ChosenArea/x_min, ChosenArea/y_max, rdc_meter); 
+		parameter<rdc_meter> top_right    := point_xy(ChosenArea/x_max, ChosenArea/y_max, rdc_meter);
+		parameter<rdc_meter> bottom_left  := point_xy(ChosenArea/x_min, ChosenArea/y_min, rdc_meter);
+		parameter<rdc_meter> bottom_right := point_xy(ChosenArea/x_max, ChosenArea/y_min, rdc_meter);
 		
 		unit<uint32> point_set : nrofrows = 5
 		{
-			attribute<rdc>  geometry     := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
+			attribute<rdc_meter>  geometry     := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
 			attribute<..>   sequence_rel := const(0, .);
 			attribute<.>    ordinal      := id(.);
 		}
 		
-		// attribute<rdc> geometry (poly)      := points2sequence(point_set/geometry, point_set/sequence_rel, point_set/ordinal);
-		parameter<rdc> geometry (poly)      := points2sequence(point_set/geometry);
+		// attribute<rdc_meter> geometry (poly)      := points2sequence(point_set/geometry, point_set/sequence_rel, point_set/ordinal);
+		parameter<rdc_meter> geometry (poly)      := points2polygon(point_set/geometry);
 	}
 	
 	container perGridsize := for_each_ne(Gridsizes/name, 'Create_GridDomain_T('+string(Gridsizes/size)+'[m])');

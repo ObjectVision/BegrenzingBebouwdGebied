@@ -8,10 +8,12 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 		:	StorageName     = "%SourceDataDir%/CBS/BestandBodemGebruik/CBS_MutatiebestandBBG1996_2017_v1.gpkg"
 		,	StorageType     = "gdal.vect"
 		,	StorageReadOnly = "True"
-		,	Source          = "https:\//geodata.cbs.nl/files/Bodemgebruik/BBG2017/CBS_MutatiebestandBBG1996_2017_v1_GPKG.zip"
+		,	DialogData      = "rdc_meter"
 		{
-			attribute<rdc>    Geometry (poly);
-			// attribute<bool>   IsStudyArea := IsDefined(point_in_polygon(centroid_or_mid(geometry), Geography/StudyArea/geometry));
+			// attribute<rdc_meter>    Geometry (poly);
+			attribute<rdc_meter>    geometry_simpl (poly)    := geos_simplify_multi_polygon(geometry, 1d);
+			// attribute<bool>   IsStudyArea        := IsDefined(point_in_polygon(centroid_or_mid(geometry_simpl), Geography/StudyArea/geometry));
+			// attribute<geography/StudyArea>   IsStudyArea        := point_in_polygon(centroid_or_mid(geometry_simpl), Geography/StudyArea/geometry);
 			attribute<gg_src> CBSKlasse_rel_1996 := bbg_ek/CBSKlasseNr[value(BG96, bbg_ek)];
 			attribute<gg_src> CBSKlasse_rel_2000 := bbg_ek/CBSKlasseNr[value(BG00, bbg_ek)];
 			attribute<gg_src> CBSKlasse_rel_2003 := bbg_ek/CBSKlasseNr[value(BG03, bbg_ek)];
@@ -22,10 +24,32 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 			attribute<gg_src> CBSKlasse_rel_2015 := bbg_ek/CBSKlasseNr[value(BG15, bbg_ek)];
 			attribute<gg_src> CBSKlasse_rel_2017 := bbg_ek/CBSKlasseNr[value(BG17, bbg_ek)];
 			
-			attribute<rdc> geometry_studyarea (poly) :=  bg_intersect(Geometry,  Geography/StudyArea/geometry);
+			attribute<rdc_meter> geometry_studyarea (poly) :=  geos_intersect(geometry_simpl,  Geography/StudyArea/geometry);
 		}
-		
-		unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2017, area(BBG_Reeks_1996_2017/geometry_studyarea, m2) > 0.1f);
+		unit<uint32> BBG_Reeks_1996_2022
+		:	StorageName     = "%SourceDataDir%/CBS/BestandBodemGebruik/CBS_Mutatiebestand_NBBG2022_v1_def_z3d.gpkg"
+		,	StorageType     = "gdal.vect"
+		,	StorageReadOnly = "True"
+		,	DialogData      = "rdc_meter"
+		{
+			attribute<bool>   IsStudyArea        := IsDefined(point_in_polygon(centroid_or_mid(geometry_simpl), Geography/StudyArea/geometry));
+			attribute<gg_src> CBSKlasse_rel_1996 := bbg_ek/CBSKlasseNr[value(BG96, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2000 := bbg_ek/CBSKlasseNr[value(BG00, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2003 := bbg_ek/CBSKlasseNr[value(BG03, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2006 := bbg_ek/CBSKlasseNr[value(BG06, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2008 := bbg_ek/CBSKlasseNr[value(BG08, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2010 := bbg_ek/CBSKlasseNr[value(BG10, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2012 := bbg_ek/CBSKlasseNr[value(BG12, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2015 := bbg_ek/CBSKlasseNr[value(BG15, bbg_ek)];
+			attribute<gg_src> CBSKlasse_rel_2017 := bbg_ek/CBSKlasseNr[value(BG17, bbg_ek)];
+			
+			attribute<rdc_meter>    geometry_simpl (poly)    := geos_simplify_multi_polygon(geometry, 1d);
+			// attribute<rdc_meter> geometry_studyarea (poly) :=  bg_intersect(Geometry,  Geography/StudyArea/geometry);
+		}
+		// 
+		// unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2017, BBG_Reeks_1996_2017/IsStudyArea);
+		unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2017, area(BBG_Reeks_1996_2017/geometry_studyarea, m2) > 0.1d);
+		// unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2022, BBG_Reeks_1996_2022/IsStudyArea);
 	}
 	
 	attribute<uint16> Verharding (rdc_10m)

@@ -1,3 +1,5 @@
+// voor documentatie van de geodms script taal, zie: https://www.geodms.nl/
+
 container BegrenzingBebouwdGebied
 {
 	#include <Units.dms>
