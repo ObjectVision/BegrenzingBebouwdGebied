@@ -17,7 +17,10 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	// alleen op de landsgrens.
 	// =============================================================================================
 
-	parameter<string> BBG_jaar := '2012', Descr = "Peiljaar; bepaalt welke CBSKlasse_rel_<jaar> uit het BBG-mutatiebestand wordt gebruikt";
+	// peiljaar centraal ingesteld in ModelParameters/BBG_Year; dat stuurt hier de kolomkeuze
+	// (CBSKlasse_rel_<jaar>) en elders de bronreeks (SourceData/BBG/StudyArea) en de
+	// classificatie-versie (classifications/bbg/CBSKlasse: 2010- dan wel 2020-indeling)
+	parameter<string> BBG_jaar := ModelParameters/BBG_Year, Descr = "Peiljaar (volgt ModelParameters/BBG_Year); bepaalt welke CBSKlasse_rel_<jaar> uit de BBG-bronreeks wordt gebruikt";
 
 	// ---- parameters van de methodiek; herkomst per parameter in Descr --------------------------
 	parameter<m>       SamengesteldeBufferAfstand := 16[m],  Descr = "Rapport §2.2.2/voetnoot 1: samengestelde buffer van 16 m; 2x16 m operationaliseert de 32 m-grens (weg van 2x2 banen) waarboven infrastructuur afsluit";
@@ -39,8 +42,8 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	// ============================================================================================
 	unit<uint32> Stap0 := ='geos_split_union_polygon(BBG/geometry, BBG/CBSKlasse_rel_'+BBG_jaar+')'
 	{
-		attribute<gg_src>       CBSKlasse_rel        := part_rel;
-		attribute<Hoofdklassen> Hoofdklassen_rel     := gg_src/Hoofdklassen_rel[part_rel];
+		attribute<CBSKlasse>    CBSKlasse_rel        := part_rel;
+		attribute<Hoofdklassen> Hoofdklassen_rel     := CBSKlasse/Hoofdklassen_rel[part_rel];
 		attribute<.>            per_10m    (rdc_10m) := poly2grid(geometry, rdc_10m);
 	}
 
@@ -92,7 +95,7 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 		// (rapport §2.2.2); de AML regelt dat door water als buitengebied te laten meetellen
 		// (selectie 'buiten1': ... OR bbg = 78/71/72/73). Alleen spoor- en hoofdwegen werken dus
 		// afsluitend. Ditzelfde water kan in stap 4 alsnog bebouwd gebied worden (grachten in de kom).
-		unit<uint32> Buitengebied_bron := select_with_org_rel(gg_src/IsBuitengebied_OmslotenAnalyse[Stap0/CBSKlasse_rel])
+		unit<uint32> Buitengebied_bron := select_with_org_rel(CBSKlasse/IsBuitengebied_OmslotenAnalyse[Stap0/CBSKlasse_rel])
 		{
 			attribute<rdc_meter> geometry (poly) := Stap0/geometry[org_rel];
 		}

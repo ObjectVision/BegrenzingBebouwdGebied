@@ -1,0 +1,153 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Dit is RSOpen, de open source versie van het model RuimteScanner. Het scipt wordt uitgegeven onder GNU-GPL licentie.
+//
+// RSOpen is ontwikkeld door PBL Planbureau voor de Leefomgeving, i.s.m Object Vision, VU Vrije Universiteit Amsterdam en Deltares
+// Opdrachtgever/ontwikkelaar PBL: Bas van Bemmel (Bas.vanBemmel@pbl.nl)
+// Contactpersoon/ontwikkelaar Object Vision: Jip Claassens (jclaassens@objectvision.nl)
+// Contactpersoon/ontwikkelaar Deltares: Bart Rijken (bart.rijken@deltares.nl)
+//
+// Specificeert de container 'V'.
+//
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+unit<UInt8> CBS2020Klasse: NrOfRows = 42
+{
+	unit<Uint32> Elements := Range(uint32, 0, nrAttr * #CBS2020Klasse), IsHidden = "True"
+	{
+		attribute<String> Text: [ // @USERINPUT
+		//   EK2020,        BrushColor,                                    name,                          ,           ,        ,           ,                  ,   ,   ,              ,                           LU_ModelType
+				 '0', 'rgb(128,128,128)', 'Oorspronkelijk NoData',             'Overigen'                 , 'Overigen'          , 'FALSE', 'Overigen',        'Overigen','0','0',       'Groen',    'Groen', '0','Overig',
+				'10', 'rgb(115,76,0)',    'Spoorterrein',                        'Infra'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','4','4',        'Rood',     'Groen', '5','Infra',
+				'11', 'rgb(204,0,0)',     'Hoofdweg',                          'Infra'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','4','4',        'Rood',     'Groen', '5','Infra',
+				'12', 'rgb(109,109,109)', 'Vliegveld',                         'Infra'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','4','4',        'Rood',     'Groen', '5','Infra',
+				'13', 'rgb(115,76,50)',   'Metro en sneltram',                 'Infra'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','4','4',        'Rood',     'Groen', '5','Infra',
+				// '14', 'rgb(115,76,75)',   'busbaan',                           'Infra'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','4','4',        'Rood',     'Groen', '5','Infra',
+				'20', 'rgb(255,102,0)',   'Woonterrein',                        'woongebied'               , 'Wonen'             , 'FALSE', 'Wonen',           'Bebouwd','1','1',        'Rood',     'Groen', '1','Wonen',
+				'21', 'rgb(255,153,51)',  'Detailhandel en horeca',            'Detailhandel_en_horeca'   , 'Werken'            , 'FALSE', 'Werken',          'Bebouwd','2','2',        'Rood',     'Paars','11','Werken',
+				'22', 'rgb(255,255,153)', 'Openbare voorziening',            'Voorzieningen'            , 'Werken'            , 'FALSE', 'Werken',          'Bebouwd','2','2',        'Rood',     'Paars','10','Werken',
+				'23', 'rgb(255,178,102)', 'Sociaal-culturele voorziening',   'Voorzieningen'            , 'Werken'            , 'FALSE', 'Werken',          'Bebouwd','2','2',        'Rood',     'Groen', '8','Werken',
+				'24', 'rgb(128,128,128)', 'Bedrijfsterrein',                 'bedrijfsterreinen'        , 'Werken'            , 'FALSE', 'Werken',          'Bebouwd','2','2',        'Rood',     'Paars', '6','Werken',
+				'30', 'rgb(153,102,153)', 'Stortplaats',                     'Overigen'                 , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','2','2',        'Rood',     'Groen','14','Overig',
+				// '31', 'rgb(153,102,153)', 'wrakkenopslagplaatsen',             'Overigen'                 , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','2','2',        'Rood',     'Groen','14','Overig',
+				'32', 'rgb(153,204,102)', 'Begraafplaats',                     'begraafplaats'            , 'Overigen'          , 'FALSE', 'Stedelijk_groen', 'Bebouwd','2','2',        'Rood',     'Groen','12','Overig',
+				'33', 'rgb(155,155,255)', 'Delfstofwinplaats',                'Overigen'                 , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','2','2',        'Rood',     'Groen','14','Overig',
+				'34', 'rgb(255,211,127)', 'Bouwterrein',                       'Overigen'                 , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','3','3',        'Rood',     'Groen', '7','Overig',
+				'35', 'rgb(254,250,194)', 'Semi-verhard overig terrein',        'Infra'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','2','2',        'Rood',     'Groen', '9','Infra',
+				'36', 'rgb(255,230,102)', 'Zonnepark',                         'Energie'                  , 'Overigen'          , 'FALSE', 'Overigen',        'Bebouwd','2','2',        'Rood',     'Groen', '9','Zon',
+				'40', 'rgb(177,214,0)',   'Stedelijk groen',                   'parken_en_plantsoenen'    , 'Overigen'          , 'FALSE', 'Stedelijk_groen', 'Bebouwd','5','5',        'Rood',     'Groen','12','Overig',
+				'41', 'rgb(153,204,0)',   'Sportterrein',                    'sportterreinen'           , 'Overigen'          , 'FALSE', 'Stedelijk_groen', 'Bebouwd','5','5',        'Rood',     'Groen','12','Overig',
+				'42', 'rgb(174,151,75)',  'Volkstuin',                       'volkstuinen'              , 'Overigen'          , 'FALSE', 'Stedelijk_groen', 'Bebouwd','5','5',        'Rood',     'Groen','12','Overig',
+				'43', 'rgb(204,255,153)', 'Dagrecreatief terrein',          'dagrecreatieve_terreinen' , 'Overigen'          , 'FALSE', 'Stedelijk_groen', 'Bebouwd','2','2',        'Rood',     'Groen', '4','Overig',
+				'44', 'rgb(178,255,102)', 'Verblijfsrecreatief terrein',                'Verblijfsrecreatie'       , 'Verblijfsrecreatie', 'FALSE', 'Stedelijk_groen', 'Bebouwd','2','2',        'Rood',     'Groen', '4','Verblijfsrec',
+				'50', 'rgb(204,153,153)', 'Glastuinbouw',                      'Overigen'                 , 'Overigen'          , 'FALSE', 'Werken',          'Bebouwd','6','6',        'Groen',    'Groen', '2','Overig',
+				'51', 'rgb(233,255,190)', 'Overig agrarisch terrein',         'overige_agrarisch_gebruik', 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Agrarisch','6','7',      'Groen',    'Groen', '2','',
+				'52', 'rgb(230,184,135)', 'Akker en meerjarige teelt',         'overige_agrarisch_gebruik', 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Agrarisch','6','7',      'Groen',    'Groen', '2','',
+				'53', 'rgb(180,230,150)', 'Agrarisch grasland',                'overige_agrarisch_gebruik', 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Agrarisch','6','7',      'Groen',    'Groen', '2','',
+				'60', 'rgb(103,174,0)',   'Bos',                               'Natuur'                   , 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Natuur','7','8',         'Groen',    'Groen', '3','Natuur',
+				'61', 'rgb(170,255,220)', 'Open droog natuurlijk terrein',          'Natuur'                   , 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Natuur','7','9',         'Groen',    'Groen', '3','Natuur',
+				'62', 'rgb(170,255,220)', 'Open nat natuurlijk terrein',            'Natuur'                   , 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Natuur','7','9',         'Groen',    'Groen', '3','Natuur',
+				// '63', 'rgb(170,255,220)', 'natuurlijk_grasland',               'Natuur'                   , 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Natuur','7','9',         'Groen',    'Groen', '3','Natuur',
+				// '64', 'rgb(170,255,220)', 'kustduinen',                        'Natuur'                   , 'Overigen'          , 'FALSE', 'Landelijk_groen', 'Natuur','7','9',         'Groen',    'Groen', '3','Natuur',
+				'70', 'rgb(153,204,255)', 'IJsselmeer en Markermeer',             'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'71', 'rgb(102,178,255)', 'Afgesloten zeearm',                 'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'72', 'rgb(153,204,255)', 'Rijn en Maas',                      'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'73', 'rgb(102,178,255)', 'Randmeer',                          'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'74', 'rgb(153,204,255)', 'Spaarbekken',                      'Water'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'75', 'rgb(153,204,255)', 'Recreatief binnenwater', 'Water'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'76', 'rgb(153,204,255)', 'Binnenwater voor delfstofwinning', 'Water'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'77', 'rgb(153,204,255)', 'Vloei- en slibveld',              'Water'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Water','2','2',          'Groen',    'Groen','13','Water',
+				'78', 'rgb(153,204,255)', 'Overig binnenwater',                'Water'                    , 'Overigen'          , 'FALSE', 'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'80', 'rgb(153,204,255)', 'Waddenzee Eems en Dollard',            'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','9','11',         'Groen',    'Groen','13','Water',
+				'81', 'rgb(153,204,255)', 'Oosterschelde',                     'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'82', 'rgb(153,204,255)', 'Westerschelde',                     'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','8','10',         'Groen',    'Groen','13','Water',
+				'83', 'rgb(153,204,255)', 'Noordzee',                          'Water'                    , 'Overigen'          , 'TRUE',  'Overigen',        'Water','9','11',         'Groen',    'Groen','13','Water',
+				// NB: anders dan in het mutatiebestand 1996-2017 (waar buitenland als 0 is gecodeerd)
+				// gebruikt het NBBG2022-bestand code 90 voor buitenland, conform tabel 1 van Odijk et al.
+				'90', 'rgb(255,255,255)', 'Buitenland',                        'Overigen'                 , 'Overigen'          , 'FALSE', 'Overigen',        'Buitenland','0','',      'Groen',    'Groen', '0','Overig'
+		], DialogType = "BrushColor";
+	}
+	attribute<CBS2020KlasseEK> EK2020                := value(Elements/Text[value(Uint32(id(.))* nrAttr + 0, Elements)], CBS2020KlasseEK);     //[0,10,11,12,20,21,22,23,24,30,31,32,33,34,35,40,41,42,43,44,50,51,60,61,62,70,71,72,73,74,75,76,77,78,80,81,82,83, 0];
+	attribute<UInt32>          BrushColor            := ='union_data(., '+asItemList(Elements/Text[value(Uint32(id(.))* nrAttr + 1, Elements)])+')', DialogType = "BrushColor";
+	attribute<String>          Label                 := Elements/Text[value(Uint32(id(.))* nrAttr + 2, Elements)];
+	attribute<String>          name                  := AsItemName(label);
+	attribute<String>          Aggr_ref              := Elements/Text[value(Uint32(id(.))* nrAttr + 3, Elements)];
+	attribute<String>          Sector_ref            := Elements/Text[value(Uint32(id(.))* nrAttr + 4, Elements)];
+		
+	parameter<UInt32> nrAttr := 14;
+
+	// De Hoofdklassen-toedeling staat hier op EK-códe (niet op itemnaam zoals in CBS2010Klasse):
+	// tabel 1 van Odijk et al. (2004) is in codes gesteld en de NBBG-labels wijken tekstueel af
+	// van de oude namen. Nieuwe klassen t.o.v. BBG2000-2017 en hun toedeling:
+	//   13 Metro en sneltram      -> Secundair_B: in BS96 vielen tram/metro onder klasse 41
+	//      'Spoor-, tram- en metrowegen', destijds secb (rapport bijlage 6); BBG2000-2017 kende ze niet;
+	//   36 Zonnepark              -> Buitengebied: semi-bebouwd-groep, analoog aan 33/34/35 die in
+	//      tabel 1 ook buitengebied zijn; een zonnepark maakt zijn omgeving niet stedelijk;
+	//   52 Akker / 53 Agrarisch grasland -> Buitengebied (opsplitsing van 51 Overig agrarisch);
+	//   31 Wrakkenopslagplaats is vervallen als klasse.
+	attribute<uint8> EK_code := uint8(EK2020), Descr = "CBS-klassecode in NBBG2020/NBBG2022";
+
+	attribute<bool>            IsPrimairBebouwdGebied := EK_code == 20b  // Woonterrein
+															|| EK_code == 21b  // Detailhandel en horeca
+															|| EK_code == 24b; // Bedrijfsterrein
+
+	attribute<bool>            IsSecundairBebouwdGebied_A := EK_code == 22b  // Openbare voorziening
+															|| EK_code == 23b  // Sociaal-culturele voorziening
+															|| EK_code == 30b  // Stortplaats
+															|| EK_code == 32b  // Begraafplaats
+															|| EK_code == 40b  // Stedelijk groen (was: parken en plantsoenen)
+															|| EK_code == 41b  // Sportterrein
+															|| EK_code == 42b  // Volkstuin
+															|| EK_code == 43b  // Dagrecreatief terrein
+															|| EK_code == 75b  // Recreatief binnenwater
+															|| EK_code == 77b; // Vloei- en slibveld
+
+	attribute<bool>            IsSecundairBebouwdGebied_B := EK_code == 10b  // Spoorterrein
+															|| EK_code == 11b  // Hoofdweg
+															|| EK_code == 13b  // Metro en sneltram
+															|| EK_code == 71b  // Afgesloten zeearm
+															|| EK_code == 72b  // Rijn en Maas
+															|| EK_code == 73b  // Randmeer
+															|| EK_code == 78b; // Overig binnenwater
+	attribute<bool>            IsSecundairBebouwdGebied  := IsSecundairBebouwdGebied_A || IsSecundairBebouwdGebied_B;
+
+	attribute<bool>            IsBuitengebied             := EK_code == 12b  // Vliegveld
+															|| EK_code == 33b  // Delfstofwinplaats
+															|| EK_code == 34b  // Bouwterrein
+															|| EK_code == 35b  // Semi-verhard overig terrein
+															|| EK_code == 36b  // Zonnepark
+															|| EK_code == 44b  // Verblijfsrecreatief terrein
+															|| EK_code == 50b  // Glastuinbouw
+															|| EK_code == 51b  // Overig agrarisch terrein
+															|| EK_code == 52b  // Akker en meerjarige teelt
+															|| EK_code == 53b  // Agrarisch grasland
+															|| EK_code == 60b  // Bos
+															|| EK_code == 61b  // Open droog natuurlijk terrein
+															|| EK_code == 62b  // Open nat natuurlijk terrein
+															|| EK_code == 70b  // IJsselmeer en Markermeer
+															|| EK_code == 74b  // Spaarbekken
+															|| EK_code == 76b  // Binnenwater voor delfstofwinning
+															|| EK_code == 80b  // Waddenzee Eems en Dollard
+															|| EK_code == 81b  // Oosterschelde
+															|| EK_code == 82b  // Westerschelde
+															|| EK_code == 83b  // Noordzee
+															|| EK_code == 90b; // Buitenland
+
+	// Voor de omsloten-analyse in Analysis/Stap1 telt binnenwater mee als buitengebied:
+	// infrastructuur sluit secundair gebied alleen af van het buitengebied als het geen
+	// water/waterweg is (rapport §2.2.2). De AML doet dit in de selectie 'buiten1':
+	// "prim <> 1 AND seca <> 1 AND secb <> 1 OR bbg = 78 OR bbg = 71 OR bbg = 72 OR bbg = 73".
+	// Alleen spoor (10), hoofdwegen (11) en metro/sneltram (13) werken dus afsluitend.
+	// NB codering: in NBBG2020/2022 is buitenland gewoon code 90 (conform tabel 1) en is code 0
+	// alleen nodata; 0-vlakken vallen in geen enkele hoofdklasse (Hoofdklassen_rel = null) en doen
+	// dus niet mee — conform de AML, die code 0 uitsloot. In de data komen 0-vlakken niet voor.
+	attribute<bool>            IsBuitengebied_OmslotenAnalyse := IsBuitengebied
+															|| EK_code == 71b  // Afgesloten zeearm
+															|| EK_code == 72b  // Rijn en Maas
+															|| EK_code == 73b  // Randmeer
+															|| EK_code == 78b; // Overig binnenwater
+
+
+
+	container V := for_each_nedv(name, string(id(.))+'[..]', void, .);
+}

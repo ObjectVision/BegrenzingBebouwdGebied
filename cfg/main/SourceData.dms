@@ -10,46 +10,43 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 		,	StorageReadOnly = "True"
 		,	DialogData      = "rdc_meter"
 		{
-			// attribute<rdc_meter>    Geometry (poly);
-			attribute<rdc_meter>    geometry_simpl (poly)    := geos_simplify_multi_polygon(geometry, 1d);
-			// attribute<bool>   IsStudyArea        := IsDefined(point_in_polygon(centroid_or_mid(geometry_simpl), Geography/StudyArea/geometry));
-			// attribute<geography/StudyArea>   IsStudyArea        := point_in_polygon(centroid_or_mid(geometry_simpl), Geography/StudyArea/geometry);
-			attribute<gg_src> CBSKlasse_rel_1996 := bbg_ek/CBSKlasseNr[value(BG96, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2000 := bbg_ek/CBSKlasseNr[value(BG00, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2003 := bbg_ek/CBSKlasseNr[value(BG03, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2006 := bbg_ek/CBSKlasseNr[value(BG06, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2008 := bbg_ek/CBSKlasseNr[value(BG08, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2010 := bbg_ek/CBSKlasseNr[value(BG10, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2012 := bbg_ek/CBSKlasseNr[value(BG12, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2015 := bbg_ek/CBSKlasseNr[value(BG15, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2017 := bbg_ek/CBSKlasseNr[value(BG17, bbg_ek)];
-			
-			attribute<rdc_meter> geometry_studyarea (poly) :=  geos_intersect(geometry_simpl,  Geography/StudyArea/geometry);
+			attribute<rdc_meter>    geometry_simpl     (poly) := geos_simplify_multi_polygon(geometry, 1d);
+			attribute<rdc_meter>    geometry_studyarea (poly) := geos_intersect(geometry_simpl, Geography/StudyArea/geometry);
+
+			// klasse-relaties per peiljaar. Getypeerd op de jaartal-geschakelde CBSKlasse (via een
+			// value-cast vanaf de 2010-codering): zo werken Analysis' lookups voor elk peiljaar op
+			// hetzelfde klassendomein. Deze kolommen zijn alleen betekenisvol bij BBG_Year < 2020.
+			attribute<CBSKlasse> CBSKlasse_rel_1996 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG96, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2000 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG00, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2003 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG03, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2006 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG06, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2008 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG08, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2010 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG10, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2012 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG12, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2015 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG15, CBS2010KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2017 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG17, CBS2010KlasseEK)], CBSKlasse);
 		}
+		// NBBG-reeks: nieuwe CBS-classificatie (o.a. 13 metro/sneltram, 36 zonnepark, 52/53
+		// agrarisch gesplitst; buitenland = 90) EN nieuwe geometrie — inclusief landaanwinning
+		// zoals IJburg, die in de 1996-2017-reeks ontbreekt (blijft daar water, klasse 70).
 		unit<uint32> BBG_Reeks_1996_2022
 		:	StorageName     = "%SourceDataDir%/CBS/BestandBodemGebruik/CBS_Mutatiebestand_NBBG2022_v1_def_z3d.gpkg"
 		,	StorageType     = "gdal.vect"
 		,	StorageReadOnly = "True"
 		,	DialogData      = "rdc_meter"
 		{
-			attribute<bool>   IsStudyArea        := IsDefined(point_in_polygon(centroid_or_mid(geometry_simpl), Geography/StudyArea/geometry));
-			attribute<gg_src> CBSKlasse_rel_1996 := bbg_ek/CBSKlasseNr[value(BG96, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2000 := bbg_ek/CBSKlasseNr[value(BG00, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2003 := bbg_ek/CBSKlasseNr[value(BG03, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2006 := bbg_ek/CBSKlasseNr[value(BG06, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2008 := bbg_ek/CBSKlasseNr[value(BG08, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2010 := bbg_ek/CBSKlasseNr[value(BG10, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2012 := bbg_ek/CBSKlasseNr[value(BG12, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2015 := bbg_ek/CBSKlasseNr[value(BG15, bbg_ek)];
-			attribute<gg_src> CBSKlasse_rel_2017 := bbg_ek/CBSKlasseNr[value(BG17, bbg_ek)];
-			
-			attribute<rdc_meter>    geometry_simpl (poly)    := geos_simplify_multi_polygon(geometry, 1d);
-			// attribute<rdc_meter> geometry_studyarea (poly) :=  bg_intersect(Geometry,  Geography/StudyArea/geometry);
+			attribute<rdc_meter>    geometry_simpl     (poly) := geos_simplify_multi_polygon(geometry, 1d);
+			attribute<rdc_meter>    geometry_studyarea (poly) := geos_intersect(geometry_simpl, Geography/StudyArea/geometry);
+
+			// alleen betekenisvol bij BBG_Year >= 2020 (dan is CBSKlasse = CBS2020Klasse)
+			attribute<CBSKlasse> CBSKlasse_rel_2020 := value(CBS2020KlasseEK/CBSKlasseNr[value(NBBG20, CBS2020KlasseEK)], CBSKlasse);
+			attribute<CBSKlasse> CBSKlasse_rel_2022 := value(CBS2020KlasseEK/CBSKlasseNr[value(NBBG22, CBS2020KlasseEK)], CBSKlasse);
 		}
-		// 
-		// unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2017, BBG_Reeks_1996_2017/IsStudyArea);
-		unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2017, area(BBG_Reeks_1996_2017/geometry_studyarea, m2) > 0.1d);
-		// unit<uint32> StudyArea := select_with_attr_by_cond(BBG_Reeks_1996_2022, BBG_Reeks_1996_2022/IsStudyArea);
+
+		// bronkeuze per peiljaar: t/m 2017 het mutatiebestand 1996-2017, vanaf 2020 de NBBG-reeks
+		unit<uint32> StudyArea := = uint32(ModelParameters/BBG_Year) >= 2020
+			? 'select_with_attr_by_cond(BBG_Reeks_1996_2022, area(BBG_Reeks_1996_2022/geometry_studyarea, m2) > 0.1d)'
+			: 'select_with_attr_by_cond(BBG_Reeks_1996_2017, area(BBG_Reeks_1996_2017/geometry_studyarea, m2) > 0.1d)';
 	}
 	
 	// Copernicus HRL Imperviousness Density 2018 (0..100 = %, 254 = unclassifiable, 255 = outside
