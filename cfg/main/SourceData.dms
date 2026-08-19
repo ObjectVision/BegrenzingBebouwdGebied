@@ -12,7 +12,7 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 		{
 			attribute<rdc_meter>    geometry_simpl     (poly) := geos_simplify_multi_polygon(geometry, 1d);
 			attribute<rdc_meter>    geometry_studyarea (poly) := geos_intersect(geometry_simpl, Geography/StudyArea/geometry);
-
+			attribute<bool>         IsStudyArea        := point_in_polygon(centroid_or_mid(geometry_simpl), Geography/StudyArea/geometry); //is wellicht efficienter dan geos_intersect
 			// klasse-relaties per peiljaar. Getypeerd op de jaartal-geschakelde CBSKlasse (via een
 			// value-cast vanaf de 2010-codering): zo werken Analysis' lookups voor elk peiljaar op
 			// hetzelfde klassendomein. Deze kolommen zijn alleen betekenisvol bij BBG_Year < 2020.
