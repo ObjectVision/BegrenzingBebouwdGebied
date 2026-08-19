@@ -49,13 +49,17 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 			: 'select_with_attr_by_cond(BBG_Reeks_1996_2017, area(BBG_Reeks_1996_2017/geometry_studyarea, m2) > 0.1d)';
 	}
 	
-	// Copernicus HRL Imperviousness Density 2018 (0..100 = %, 254 = unclassifiable, 255 = outside
-	// area; geen nodata gedeclareerd in de tif). NB: de tif heeft celgrootte 10,2046 m (gewarpt uit
-	// het LAEA-grid) en wijkt dus af van het exacte 10 m rdc_10m-grid — GeoDMS meldt dit als
-	// 'Factor difference'-warning bij het lezen. Vervangen door een correct naar het 10 m RD-grid
-	// gewarpte IMD 2012: zie issue #1.
+	// Verhardingskaart per peiljaar: Copernicus HRL Imperviousness Density (0..100 = %,
+	// 254 = unclassifiable, 255 = outside area).
+	// - 2012-laag: IMD 2012 (20 m, EU-mozaïek EPSG:3035), gewarpt naar het exacte 10 m rdc-grid
+	//   (gdalwarp -te -60650 223320 341920 637060 -tr 10 10 -r near -ot UInt16, nodata 255
+	//   gedeclareerd) — leest zonder 'Factor difference'-warning en zonder zee-als-255-waarden.
+	// - 2018-laag: oude warp met celgrootte 10,2046 m en zonder nodata-declaratie; bij gelegenheid
+	//   met hetzelfde recept opnieuw warpen vanaf de EU-bron (rest van issue #1).
+	// Peiljaren t/m 2015 gebruiken de 2012-kaart, latere de 2018-kaart. Voor 1996-2010 zijn t.z.t.
+	// ook IMD 2006/2009 toe te voegen (zelfde recept).
 	attribute<uint16> Verharding (rdc_10m)
-	: StorageName = "%SourceDataDir%/Overig/imperviousness_2018_010m_NL_rdc.tif"
+	: StorageName = "= uint32(ModelParameters/BBG_Year) <= 2015 ? '%SourceDataDir%/Overig/imperviousness_2012_010m_NL_rdc.tif' : '%SourceDataDir%/Overig/imperviousness_2018_010m_NL_rdc.tif'"
 	,	StorageReadOnly = "True"
 	,	LazyCalculated = "true";
 }
