@@ -27,8 +27,8 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 			attribute<CBSKlasse> CBSKlasse_rel_2017 := value(CBS2010KlasseEK/CBSKlasseNr[value(BG17, CBS2010KlasseEK)], CBSKlasse);
 		}
 		// NBBG-reeks: nieuwe CBS-classificatie (o.a. 13 metro/sneltram, 36 zonnepark, 52/53
-		// agrarisch gesplitst; buitenland = 90) EN nieuwe geometrie — inclusief landaanwinning
-		// zoals IJburg, die in de 1996-2017-reeks ontbreekt (blijft daar water, klasse 70).
+		// agrarisch gesplitst; buitenland = 90) EN opnieuw ingewonnen geometrie. Let op: tussen
+		// 2017 en 2020 zit daardoor een trendbreuk (vgl. BG96-1 vs BG96-2 in rapport par. 3.1).
 		unit<uint32> BBG_Reeks_1996_2022
 		:	StorageName     = "%SourceDataDir%/CBS/BestandBodemGebruik/CBS_Mutatiebestand_NBBG2022_v1_def_z3d.gpkg"
 		,	StorageType     = "gdal.vect"
