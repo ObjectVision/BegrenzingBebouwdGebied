@@ -87,6 +87,16 @@ unit<UInt8> CBS2020Klasse: NrOfRows = 42
 	//   31 Wrakkenopslagplaats is vervallen als klasse.
 	attribute<uint8> EK_code := uint8(EK2020), Descr = "CBS-klassecode in NBBG2020/NBBG2022";
 
+	// Dissolve-klasse voor stap 0. De NBBG-reeks splitst het agrarisch gebied in 51 (overig),
+	// 52 (akker) en 53 (grasland). Alle drie zijn buitengebied en worden in stap 1 toch over de
+	// klassegrenzen heen samengevoegd; ze in stap 0 al als een klasse dissolven levert exact
+	// hetzelfde resultaat, maar scheelt honderdduizenden losse polygonen (van de 1,1 mln
+	// buitengebied-vlakken zit ~82% in deze drie klassen) en daarmee zeer veel rekentijd in de
+	// dissolve en de overlay van stap 1.
+	attribute<.> DissolveKlasse_rel := iif(EK_code == 52b || EK_code == 53b
+										, CBS2020KlasseEK/CBSKlasseNr[51b]
+										, id(.));
+
 	attribute<bool>            IsPrimairBebouwdGebied := EK_code == 20b  // Woonterrein
 															|| EK_code == 21b  // Detailhandel en horeca
 															|| EK_code == 24b; // Bedrijfsterrein

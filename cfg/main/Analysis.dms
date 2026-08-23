@@ -40,8 +40,13 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 	// dezelfde detailklasse (POLYREGION 'subclass') en zowel de omsloten-analyse (stap 1) als de
 	// verhardingsgraad (stap 2) horen per zo'n vlak bepaald te worden. Aangrenzende vlakken van
 	// verschillende secundaire klassen (bijv. park naast sportterrein) blijven zo aparte eenheden.
+	// Uitzondering: de agrarische klassen 51/52/53 van de NBBG-reeks worden hier al samengevoegd
+	// (CBSKlasse/DissolveKlasse_rel). Ze zijn alle drie buitengebied en worden in stap 1 toch over
+	// de klassegrenzen heen gedissolved, dus het resultaat is identiek - maar het scheelt zeer veel
+	// rekentijd: zonder die samenvoeging telt het buitengebied 1,1 mln losse vlakken in plaats van
+	// 0,4 mln (2012-bron), wat de overlay van stap 1 onwerkbaar traag maakte.
 	// ============================================================================================
-	unit<uint32> Stap0 := ='geos_split_union_polygon(BBG/geometry, BBG/CBSKlasse_rel_'+BBG_jaar+')'
+	unit<uint32> Stap0 := ='geos_split_union_polygon(BBG/geometry, CBSKlasse/DissolveKlasse_rel[BBG/CBSKlasse_rel_'+BBG_jaar+'])'
 	{
 		attribute<CBSKlasse>    CBSKlasse_rel        := part_rel;
 		attribute<Hoofdklassen> Hoofdklassen_rel     := CBSKlasse/Hoofdklassen_rel[part_rel];

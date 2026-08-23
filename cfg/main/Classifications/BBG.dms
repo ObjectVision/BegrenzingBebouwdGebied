@@ -20,6 +20,11 @@ container BBG
 															? 'CBS2020Klasse/IsBuitengebied_OmslotenAnalyse'
 															: 'CBS2010Klasse/IsBuitengebied_OmslotenAnalyse';
 
+		// klasse waarop Analysis/Stap0 dissolvet; zie CBS2020Klasse/DissolveKlasse_rel
+		attribute<CBSKlasse> DissolveKlasse_rel := = uint32(ModelParameters/BBG_Year) >= 2020
+															? 'CBS2020Klasse/DissolveKlasse_rel'
+															: 'CBS2010Klasse/DissolveKlasse_rel';
+
 		container V := for_each_nedv(Name, string(ID(.))+'[..]', void, .);
 
 

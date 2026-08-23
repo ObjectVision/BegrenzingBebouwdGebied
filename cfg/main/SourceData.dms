@@ -56,10 +56,14 @@ container SourceData : using = "Classifications;units;Geography;classifications/
 	//   gedeclareerd) — leest zonder 'Factor difference'-warning en zonder zee-als-255-waarden.
 	// - 2018-laag: oude warp met celgrootte 10,2046 m en zonder nodata-declaratie; bij gelegenheid
 	//   met hetzelfde recept opnieuw warpen vanaf de EU-bron (rest van issue #1).
-	// Peiljaren t/m 2015 gebruiken de 2012-kaart, latere de 2018-kaart. Voor 1996-2010 zijn t.z.t.
-	// ook IMD 2006/2009 toe te voegen (zelfde recept).
+	// - 2021-laag: IMD 2021 (10 m, 16 EU-tegels samengevoegd tot een VRT), zelfde warp-recept.
+	//   NB: 2021/2024 komen uit een nieuwere modelgeneratie (U-Net CNN, betere wegdetectie) dan
+	//   2012/2018; dat kan de verhardingsgraad iets hoger uitvallen en is dus een aandachtspunt
+	//   bij vergelijkingen over de tijd.
+	// Peiljaren t/m 2015 gebruiken de 2012-kaart, 2017/2018 de 2018-kaart, 2020 en later de
+	// 2021-kaart. Voor 1996-2010 zijn t.z.t. ook IMD 2006/2009 toe te voegen (zelfde recept).
 	attribute<uint16> Verharding (rdc_10m)
-	: StorageName = "= uint32(ModelParameters/BBG_Year) <= 2015 ? '%SourceDataDir%/Overig/imperviousness_2012_010m_NL_rdc.tif' : '%SourceDataDir%/Overig/imperviousness_2018_010m_NL_rdc.tif'"
+	: StorageName = "= uint32(ModelParameters/BBG_Year) <= 2015 ? '%SourceDataDir%/Overig/imperviousness_2012_010m_NL_rdc.tif' : (uint32(ModelParameters/BBG_Year) <= 2018 ? '%SourceDataDir%/Overig/imperviousness_2018_010m_NL_rdc.tif' : '%SourceDataDir%/Overig/imperviousness_2021_010m_NL_rdc.tif')"
 	,	StorageReadOnly = "True"
 	,	LazyCalculated = "true";
 }
