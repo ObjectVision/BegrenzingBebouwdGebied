@@ -105,33 +105,34 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 		{
 			attribute<rdc_meter> geometry (poly) := Stap0/geometry[org_rel];
 		}
-		// dissolve over de klassegrenzen heen (AML: DISSOLVE op vlag 'buiten1a'): aangrenzende
-		// buitengebied- en watervlakken vormen samen een aaneengesloten gebied voor het 25 ha-criterium
-		unit<uint32> Buitengebied_aaneengesloten := geos_split_union_polygon(Buitengebied_bron/geometry);
-
 		// Doorsnijden met de samengestelde buffer (AML: UNION buiten3 pbuf4): het buitengebied
 		// wordt op de closing-rand geknipt en beide zijden worden APART gesplitst, zodat delen
 		// niet over de rand heen weer aan elkaar groeien. De AML-selectie ('buiten1a = 1 AND
 		// area GT 250000') kent geen binnen/buiten-conditie: ook een deel binnen de closing telt
 		// als groot buitengebied wanneer het > 25 ha is — denk aan een aaneengesloten
 		// grachtennetwerk (< 32 m breed, primair op beide oevers) dat samen > 25 ha beslaat.
-		// Performance: elk vlak rekent alleen tegen zijn LOKAAL overlappende closing-stukken
-		// (geos_overlay + gepartitioneerde unie) in plaats van tegen een landsdekkende
-		// closing-unie — semantisch identiek, maar dat laatste bleek bij een nationale run
-		// de bottleneck (urenlange subtracties tegen één multipolygoon van miljoenen punten).
-		unit<uint32> BG_x_Closing := geos_overlay_polygon(Buitengebied_aaneengesloten/geometry, SamengesteldeBuffer_Primair/geometry);
-		attribute<rdc_meter> closing_lokaal   (Buitengebied_aaneengesloten, poly) := geos_union_polygon(BG_x_Closing/geometry, BG_x_Closing/first_rel);
-		attribute<uint32>    NrClosingStukken (Buitengebied_aaneengesloten)       := pcount(BG_x_Closing/first_rel);
+		//
+		// VOLGORDE (performance, landsdekkend cruciaal): eerst knippen per BRONvlak, dan pas
+		// dissolven. De omgekeerde volgorde (eerst dissolven tot aaneengesloten buitengebied, dan
+		// overlayen) levert één landsdekkende multipolygoon op die met de closing moet worden
+		// doorsneden; die overlay parallelliseert niet en liep bij een nationale 2022-run na uren
+		// nog steeds. Knippen per bronvlak is veel kleiner werk per operatie, en de dissolves
+		// daarna (geos_split_union_polygon) schalen wel over tiles.
+		// Semantisch identiek: doorsnede en verschil distribueren over de unie, dus
+		// dissolve({A_i n B}) = (u A_i) n B en dissolve({A_i \ B}) = (u A_i) \ B.
+		unit<uint32> BG_x_Closing := geos_overlay_polygon(Buitengebied_bron/geometry, SamengesteldeBuffer_Primair/geometry);
+		attribute<rdc_meter> closing_lokaal   (Buitengebied_bron, poly) := geos_union_polygon(BG_x_Closing/geometry, BG_x_Closing/first_rel);
+		attribute<uint32>    NrClosingStukken (Buitengebied_bron)       := pcount(BG_x_Closing/first_rel);
 
 		// vlakken zonder closing-overlap blijven ongewijzigd buitengebied (en vermijden zo een
 		// aftrek tegen een null-geometrie)
 		unit<uint32> BG_met_closing := select_with_org_rel(NrClosingStukken > uint32(0))
 		{
-			attribute<rdc_meter> deel_buiten (poly) := Buitengebied_aaneengesloten/geometry[org_rel] - closing_lokaal[org_rel];
+			attribute<rdc_meter> deel_buiten (poly) := Buitengebied_bron/geometry[org_rel] - closing_lokaal[org_rel];
 		}
 		unit<uint32> BG_zonder_closing := select_with_org_rel(NrClosingStukken == uint32(0))
 		{
-			attribute<rdc_meter> geometry (poly) := Buitengebied_aaneengesloten/geometry[org_rel];
+			attribute<rdc_meter> geometry (poly) := Buitengebied_bron/geometry[org_rel];
 		}
 		unit<uint32> Buiten_closing_bron := union_unit(BG_met_closing, BG_zonder_closing)
 		{
