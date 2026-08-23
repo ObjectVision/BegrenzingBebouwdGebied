@@ -169,7 +169,12 @@ container Analysis : using = "units;classifications;geography;classifications/bb
 			attribute<rdc_meter> gebufferd (poly) := geos_buffer_multi_polygon(geometry, AangrenzingsAfstand[float64], 16b);
 		}
 
-		unit<uint32> SecundairA_x_GrootBuitengebied := geos_overlay_polygon(SecundairBebouwdGebied_A/geometry, Groot_Buitengebied/gebufferd);
+		// geos_polygon_connectivity i.p.v. geos_overlay_polygon: van deze doorsnijding is alleen
+		// nodig OF een secundair vlak de 32 m-buffer raakt (zie NrRakingen hieronder), niet welke
+		// geometrie dat oplevert. Connectivity is dezelfde operator zonder geometrie-constructie
+		// en bespaart dus het bouwen van doorsnede-polygonen tegen de zeer grote gebufferde
+		// buitengebied-vlakken.
+		unit<uint32> SecundairA_x_GrootBuitengebied := geos_polygon_connectivity(SecundairBebouwdGebied_A/geometry, Groot_Buitengebied/gebufferd);
 
 		attribute<uint32> NrRakingenGrootBuitengebied     (SecundairBebouwdGebied_A) := pcount(SecundairA_x_GrootBuitengebied/first_rel);
 		attribute<bool>   IsVerbondenMetGrootBuitengebied (SecundairBebouwdGebied_A) := NrRakingenGrootBuitengebied > uint32(0);
